@@ -1,0 +1,62 @@
+{
+  "name": "ct",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.1.0",
+    "axios": "^1.6.0",
+    "echarts": "^5.4.0",
+    "element-plus": "^2.4.0",
+    "socket.io-client": "^4.7.0",
+    "vue": "^3.3.0",
+    "vue-router": "^4.2.0",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/eslint-parser": "^7.28.5",
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-plugin-eslint": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "eslint": "^7.32.0",
+    "eslint-plugin-vue": "^9.0.0"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "browser": true,
+      "es2021": true,
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/vue3-essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 2021,
+      "sourceType": "module",
+      "parser": "@babel/eslint-parser"
+    },
+    "plugins": [
+      "vue"
+    ],
+    "rules": {
+      "vue/multi-word-component-names": "off"
+    }
+  },
+  "postcss": {
+    "plugins": {
+      "autoprefixer": {}
+    }
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not ie <= 8"
+  ]
+}
