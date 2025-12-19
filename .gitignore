@@ -160,3 +160,22 @@ CTAI_flask/data/
 *.engine
 ~$*
 .copilot-todo.md
+
+# IDEs
+.idea/
+*.swp
+*.swo
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.tmp
+*.old
