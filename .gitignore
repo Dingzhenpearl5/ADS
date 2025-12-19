@@ -157,4 +157,6 @@ CTAI_flask/data/
 *.jpeg
 *.gif
 *.pdf
+*.engine
+~$*
 .copilot-todo.md
