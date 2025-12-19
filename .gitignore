@@ -143,6 +143,7 @@ Thumbs.db
 .vscode/
 
 # Project specific ignores
+毕设/
 /src/
 CTAI_flask/tmp/
 CTAI_flask/uploads/
