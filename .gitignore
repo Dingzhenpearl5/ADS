@@ -152,3 +152,9 @@ CTAI_flask/data/
 *.pth
 *.h5
 *.weights
+*.jpg
+*.png
+*.jpeg
+*.gif
+*.pdf
+.copilot-todo.md
