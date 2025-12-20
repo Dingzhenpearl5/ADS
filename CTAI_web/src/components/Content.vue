@@ -293,11 +293,16 @@
     import axios from "axios";
     import { Upload, Download, Search } from '@element-plus/icons-vue'
     import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+    import { io } from 'socket.io-client'
 
     export default {
         name: "AppContent",
+        created() {
+            this.initSocket();
+        },
         data() {
             return {
+                socket: null,
                 Upload,
                 Download,
                 Search,
@@ -347,6 +352,112 @@
             this.searchPatient();
         },
         methods: {
+            initSocket() {
+                console.log("[Socket] 正在连接到:", this.server_url);
+                this.socket = io(this.server_url);
+                
+                this.socket.on('connect', () => {
+                    console.log("[Socket] 已连接");
+                });
+                
+                this.socket.on('task_completed', (data) => {
+                    console.log("[Socket] 任务完成:", data);
+                    this.updateResult(data);
+                });
+                
+                this.socket.on('task_failed', (data) => {
+                    console.error("[Socket] 任务失败:", data);
+                    this.dialogTableVisible = false;
+                    this.loading = false;
+                    this.fullscreenLoading = false;
+                    ElMessage.error('AI预测失败: ' + data.error);
+                });
+                
+                this.socket.on('disconnect', () => {
+                    console.log("[Socket] 已断开连接");
+                });
+            },
+            updateResult(data) {
+                this.percentage = 100;
+                this.url_1 = data.image_url;
+                this.srcList.push(this.url_1);
+                this.url_2 = data.draw_url;
+                this.srcList1.push(this.url_2);
+                this.fullscreenLoading = false;
+                this.loading = false;
+
+                this.feat_list = Object.keys(data.image_info);
+                this.feature_list = []; // 清空旧数据
+
+                for (var i = 0; i < this.feat_list.length; i++) {
+                    data.image_info[this.feat_list[i]][2] = this.feat_list[i];
+                    this.feature_list.push(data.image_info[this.feat_list[i]]);
+                }
+
+                this.feature_list.push(data.image_info);
+                this.feature_list_1 = this.feature_list[0];
+                
+                this.dialogTableVisible = false;
+                this.percentage = 0;
+                this.notice1();
+                
+                this.$nextTick(() => {
+                    this.initCharts(data.image_info);
+                });
+            },
+            initCharts(image_info) {
+                var areaCompare = document.getElementById("areaCompare");
+                if (areaCompare) areaCompare.style.display = "none";
+                var perimeterCompare = document.getElementById("perimeterCompare");
+                if (perimeterCompare) perimeterCompare.style.display = "none";
+                
+                let areaEl = document.getElementById("area");
+                let perimeterEl = document.getElementById("perimeter");
+                
+                if (areaEl) {
+                    let myChart_area = this.$echarts.init(areaEl);
+                    this.area_picture_data = parseInt(image_info["area"][1]);
+                    myChart_area.setOption({
+                        xAxis: {
+                            type: "category",
+                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
+                        },
+                        yAxis: {
+                            type: "value",
+                            name: "面积"
+                        },
+                        series: [
+                            {
+                                name: "面积",
+                                type: "line",
+                                data: [1300, 1290, 1272, 1123.5, 1123, 1092, 1086, this.area_picture_data]
+                            }
+                        ]
+                    });
+                }
+                
+                if (perimeterEl) {
+                    let myChart_perimeter = this.$echarts.init(perimeterEl);
+                    this.perimeter_picture_data = parseInt(image_info["perimeter"][1]);
+                    myChart_perimeter.setOption({
+                        xAxis: {
+                            type: "category",
+                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
+                        },
+                        yAxis: {
+                            type: "value",
+                            name: "周长"
+                        },
+                        series: [
+                            {
+                                name: "周长",
+                                type: "line",
+                                data: [250, 243, 235, 221, 218, 210, 205, this.perimeter_picture_data]
+                            }
+                        ]
+                    });
+                }
+            },
             async searchPatient() {
                 try {
                     const params = this.searchId ? { id: this.searchId } : {};
