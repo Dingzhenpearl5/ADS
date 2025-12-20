@@ -15,10 +15,10 @@ def c_main(path, model):
         print(f"[Main] ✅ 预处理完成 ({time.time()-t1:.2f}秒)")
         
         # 2. 模型预测
-        print(f"[Main] Step 2/4: 模型预测...")
-        t2 = time.time()
-        predict.predict(image_data, model)
-        print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
+        print(f"[Main] Step 2/4: 模型预测 (已禁用)...")
+        # t2 = time.time()
+        # predict.predict(image_data, model)
+        # print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
         
         # 3. 后处理
         print(f"[Main] Step 3/4: 后处理...")

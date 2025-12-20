@@ -95,23 +95,23 @@ def allocate_buffers(engine):
     return inputs, outputs, bindings, stream
 
 
-with open("engine.trt", "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
-    engine = runtime.deserialize_cuda_engine(f.read())
-    with engine.create_execution_context() as context:
-        # 分配输入/输出内存
-        inputs, outputs, bindings, stream = allocate_buffers(engine)
-        # Transfer input data to the GPU.
-        [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
-        # Run inference.
-        context.execute_async(batch_size=1, bindings=bindings, stream_handle=stream.handle)
-        # Transfer predictions back from the GPU.
-        [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
-        # Synchronize the stream
-        stream.synchronize()
-        # Return only the host outputs.
-        res = [out.host for out in outputs][0]
-        res = res.reshape(engine.get_binding_shape(1)[1:])
-        res[res >= 0.5] = 1
-        res[res < 0.5] = 0
-        res = res * 255
-        # cv2.imwrite(f'res.png', res, (cv2.IMWRITE_PNG_COMPRESSION, 0))
+# with open("engine.trt", "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
+#     engine = runtime.deserialize_cuda_engine(f.read())
+#     with engine.create_execution_context() as context:
+#         # 分配输入/输出内存
+#         inputs, outputs, bindings, stream = allocate_buffers(engine)
+#         # Transfer input data to the GPU.
+#         [cuda.memcpy_htod_async(inp.device, inp.host, stream) for inp in inputs]
+#         # Run inference.
+#         context.execute_async(batch_size=1, bindings=bindings, stream_handle=stream.handle)
+#         # Transfer predictions back from the GPU.
+#         [cuda.memcpy_dtoh_async(out.host, out.device, stream) for out in outputs]
+#         # Synchronize the stream
+#         stream.synchronize()
+#         # Return only the host outputs.
+#         res = [out.host for out in outputs][0]
+#         res = res.reshape(engine.get_binding_shape(1)[1:])
+#         res[res >= 0.5] = 1
+#         res[res < 0.5] = 0
+#         res = res * 255
+#         # cv2.imwrite(f'res.png', res, (cv2.IMWRITE_PNG_COMPRESSION, 0))
