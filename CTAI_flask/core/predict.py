@@ -85,4 +85,5 @@ def predict(dataset, model):
 if __name__ == '__main__':
     # 写保存模型
     # train()
-    predict()
+    # predict(dataset, model)
+    pass

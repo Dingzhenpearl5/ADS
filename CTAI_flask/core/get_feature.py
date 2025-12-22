@@ -1,5 +1,3 @@
-import inspect
-
 import SimpleITK as sitk
 import cv2
 import numpy as np
@@ -20,12 +18,6 @@ features_list = ['area', 'perimeter', 'focus_x', 'focus_y', 'ellipse', 'mean', '
 
 
 # 最后俩偏度 峰度
-
-
-# 获取变量的名
-def get_variable_name(variable):
-    callers_local_vars = inspect.currentframe().f_back.f_locals.items()
-    return [var_name for var_name, var_val in callers_local_vars if var_val is variable]
 
 
 def glcm(img_gray, ngrad=16, ngray=16):
@@ -102,13 +94,28 @@ def get_glcm_features(mat):
     for i in range(mat.shape[0]):
         for j in range(mat.shape[1]):
             corelation += (i - gray_mean) * (j - grads_mean) * mat[i][j]
-    glgcm_features = [small_grads_dominance, big_grads_dominance, gray_asymmetry, grads_asymmetry, energy, gray_mean,
-                      grads_mean,
-                      gray_variance, grads_variance, corelation, gray_entropy, grads_entropy, entropy, inertia,
-                      differ_moment]
-    for i in range(len(glgcm_features)):
-        t = get_variable_name(glgcm_features[i])[0]
-        c_features[t].append(np.round(glgcm_features[i], 4))
+    
+    glgcm_features = {
+        'small_grads_dominance': small_grads_dominance,
+        'big_grads_dominance': big_grads_dominance,
+        'gray_asymmetry': gray_asymmetry,
+        'grads_asymmetry': grads_asymmetry,
+        'energy': energy,
+        'gray_mean': gray_mean,
+        'grads_mean': grads_mean,
+        'gray_variance': gray_variance,
+        'grads_variance': grads_variance,
+        'corelation': corelation,
+        'gray_entropy': gray_entropy,
+        'grads_entropy': grads_entropy,
+        'entropy': entropy,
+        'inertia': inertia,
+        'differ_moment': differ_moment
+    }
+    
+    for name, value in glgcm_features.items():
+        if name in c_features:
+            c_features[name].append(np.round(value, 4))
 
 
 def get_geometry_feature():
@@ -192,7 +199,10 @@ def main(pid):
     for i in range(len(features_list)):
         c_features[features_list[i]] = [column_all_c[i]]
 
-    result = get_feature(f'tmp/ct/{pid}.dcm', f'tmp/mask/{pid}_mask.png')
+    ct_path = os.path.join(BASE_DIR, 'tmp', 'ct', f'{pid}.dcm')
+    mask_path = os.path.join(BASE_DIR, 'tmp', 'mask', f'{pid}_mask.png')
+    
+    result = get_feature(ct_path, mask_path)
     
     # 如果没有检测到肿瘤，返回空结果
     if result is None:
@@ -213,4 +223,6 @@ def main(pid):
 
 
 if __name__ == '__main__':
-    main()
+    # 仅用于测试
+    # main('10007')
+    pass

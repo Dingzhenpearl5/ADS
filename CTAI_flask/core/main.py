@@ -15,10 +15,16 @@ def c_main(path, model):
         print(f"[Main] ✅ 预处理完成 ({time.time()-t1:.2f}秒)")
         
         # 2. 模型预测
-        print(f"[Main] Step 2/4: 模型预测 (已禁用)...")
-        # t2 = time.time()
-        # predict.predict(image_data, model)
-        # print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
+        print(f"[Main] Step 2/4: 模型预测...")
+        if model is not None:
+            t2 = time.time()
+            predict.predict(image_data, model)
+            print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
+        else:
+            print(f"[Main] ⚠️ 模型未加载，跳过预测步骤")
+            # 如果没有模型，我们需要一个默认的mask或者报错
+            # 这里假设如果没有模型就无法继续
+            raise RuntimeError("模型未加载，无法进行预测")
         
         # 3. 后处理
         print(f"[Main] Step 3/4: 后处理...")

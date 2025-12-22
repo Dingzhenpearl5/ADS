@@ -14,10 +14,13 @@ import core.net.unet as net
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 ALLOWED_EXTENSIONS = set(['dcm'])
 app = Flask(__name__)
 app.secret_key = 'secret!'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.model = None
 
 # ==================== 数据库配置 ====================
 from flask_sqlalchemy import SQLAlchemy
@@ -322,18 +325,17 @@ def upload_file():
             
             # 处理图像
             print(f"[Upload] 开始处理图像...")
-            # pid, image_info = core.main.c_main(image_path, current_app.model)
+            pid, image_info = core.main.c_main(image_path, app.model)
             
-            # result = {
-            #     'status': 1,
-            #     'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid,
-            #     'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
-            #     'image_info': image_info
-            # }
-            # print(f"[Upload] 处理成功!")
-            # print(f"{'='*60}\n")
-            # return jsonify(result)
-            return jsonify({'status': 0, 'error': '模型已删除，暂时不提供推理功能'})
+            result = {
+                'status': 1,
+                'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid,
+                'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
+                'image_info': image_info
+            }
+            print(f"[Upload] 处理成功!")
+            print(f"{'='*60}\n")
+            return jsonify(result)
         else:
             print(f"[Upload] 文件格式不支持")
             return jsonify({'status': 0, 'error': '仅支持.dcm文件'})
@@ -397,8 +399,13 @@ if __name__ == '__main__':
         init_db()
         
         print("[Init] 开始初始化模型...")
-        # with app.app_context():
-        #     current_app.model = init_model()
+        try:
+            app.model = init_model()
+        except Exception as e:
+            print(f"[Warning] 模型初始化失败: {e}")
+            print("提示: 系统将以无模型模式运行，部分功能可能不可用")
+            app.model = None
+            
         print("[Server] 启动Flask服务器...")
         print("[Server] 服务器地址: http://127.0.0.1:5003")
         app.run(host='127.0.0.1', port=5003, debug=False, use_reloader=False)

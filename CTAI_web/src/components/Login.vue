@@ -130,7 +130,8 @@ export default {
             
             if (response.data.status === 1) {
               // 保存登录信息
-              const { token, username, name, role } = response.data.data;
+              const { token, user } = response.data;
+              const { username, name, role } = user;
               localStorage.setItem('token', token);
               localStorage.setItem('userInfo', JSON.stringify({ username, name, role }));
               

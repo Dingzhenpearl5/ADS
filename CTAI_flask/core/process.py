@@ -48,7 +48,7 @@ def pre_process(data_path):
     if not os.path.exists(tmp_image_dir):
         os.makedirs(tmp_image_dir)
     cv2.imwrite(os.path.join(tmp_image_dir, f'{file_name}.png'), image_array, (cv2.IMWRITE_PNG_COMPRESSION, 0))
-    print(f"[PreProcess] ✅ 预处理完成")
+    print(f"[PreProcess] 预处理完成")
 
     return image_data, file_name
 
@@ -81,5 +81,5 @@ def last_process(file_name):
     output_path = os.path.join(tmp_draw_dir, f'{file_name}.png')
     
     cv2.imwrite(output_path, draw)
-    print(f"[LastProcess] ✅ 轮廓图保存至: {output_path}")
+    print(f"[LastProcess] 轮廓图保存至: {output_path}")
 
