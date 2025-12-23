@@ -26,10 +26,10 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
-const props = defineProps({
+defineProps({
   patient: {
     type: Object,
     default: () => ({})

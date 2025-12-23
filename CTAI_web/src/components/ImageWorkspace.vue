@@ -60,10 +60,10 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref } from 'vue'
 import { Upload } from '@element-plus/icons-vue'
 
-const props = defineProps({
+defineProps({
   url1: String,
   url2: String,
   srcList: Array,

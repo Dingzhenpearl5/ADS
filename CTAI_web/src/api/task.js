@@ -18,3 +18,11 @@ export function downloadTemplate() {
         responseType: 'blob'
     })
 }
+
+export function startTask(patientId) {
+    return request({
+        url: '/api/predict',
+        method: 'post',
+        data: { id: patientId }
+    })
+}

@@ -6,7 +6,7 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as echarts from "echarts"
 
-import '../src/assets/style.css'
+import './assets/style.css'
 
 const app = createApp(App)
 

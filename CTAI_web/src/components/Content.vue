@@ -1,128 +1,119 @@
 <template>
-  <div id="Content">
-    <!-- Ê¹ÓÃÐëÖª¶Ô»°¿ò -->
-    <el-dialog
-      title="Ö×Áö¸¨ÖúÕï¶ÏÏµÍ³Ê¹ÓÃÐëÖª"
-      v-model="centerDialogVisible"
-      width="65%"
-      :before-close="handleClose"
-    >
-      <el-steps :active="activeStep" finish-status="success">
-        <el-step title="²½Öè1" description="ÏÂÔØ²âÊÔCTÎÄ¼þ" />
-        <el-step title="²½Öè2" description="ÉÏ´«CTÍ¼Ïñ²¢Ô¤²â" />
-        <el-step title="²½Öè3" description="²é¿´¸¨ÖúÕï¶Ï½á¹û" />
-      </el-steps>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button type="primary" @click="downTemplate">ÏÂÔØ²âÊÔCTÍ¼Ïñ</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- AIÔ¤²â½ø¶È¶Ô»°¿ò -->
-    <el-dialog
-      title="AIÔ¤²âÖÐ"
-      v-model="dialogTableVisible"
-      :show-close="false"
-      :close-on-press-escape="false"
-      :append-to-body="true"
-      :close-on-click-modal="false"
-      :center="true"
-    >
-      <el-progress :percentage="percentage"></el-progress>
-      <template #footer>
-        <span class="dialog-footer">·ÇGPUÑ§Éú·þÎñÆ÷ÐÔÄÜÓÐÏÞ£¬ÇëÄÍÐÄµÈ´ýÔ¼Ò»·ÖÖÓ</span>
-      </template>
-    </el-dialog>
-
-    <!-- ²à±ßÀ¸£º²¡ÈËÐÅÏ¢ -->
-    <div id="aside">
-      <PatientInfo :patient="patient" @search="searchPatient" />
-    </div>
-
-    <!-- Ö÷ÌåÄÚÈÝ£ºÍ¼ÏñÓëÌØÕ÷·ÖÎö -->
-    <div id="CT">
-      <ImageWorkspace 
-        :url1="url1" 
-        :url2="url2" 
-        :srcList="srcList" 
-        :srcList1="srcList1"
-        :loading="loading"
-        :showUploadButton="showUploadButton"
-        :waitReturn="waitReturn"
-        @upload="handleFile"
-      />
-
-      <div id="info_patient">
-        <FeatureAnalysis 
-          :featureList="featureList"
+  <div class="content-container">
+    <el-row :gutter="20">
+      <!-- å·¦ä¾§ï¼šæ‚£è€…ä¿¡æ¯ä¸Žæ“ä½œ -->
+      <el-col :span="6">
+        <PatientInfo 
+          :patient="displayPatient" 
           :loading="loading"
-          :showUploadButton="showUploadButton"
-          :areaData="areaData"
-          :perimeterData="perimeterData"
-          @upload="handleFile"
+          @search="fetchPatientData"
         />
+        <div style="margin-top: 20px; text-align: center;">
+          <el-button type="success" size="large" @click="handleStartDiagnosis" :loading="loading" round>
+            å¼€å§‹è¾…åŠ©è¯Šæ–­
+          </el-button>
+        </div>
+      </el-col>
+
+      <!-- ä¸­é—´ï¼šå›¾åƒå·¥ä½œåŒº -->
+      <el-col :span="12">
+        <ImageWorkspace 
+          :url1="url1"
+          :url2="url2"
+          :src-list="srcList"
+          :src-list1="srcList1"
+          :loading="loading"
+        />
+      </el-col>
+
+      <!-- å³ä¾§ï¼šç‰¹å¾åˆ†æž -->
+      <el-col :span="6">
+        <FeatureAnalysis :feature-list="featureList" />
+      </el-col>
+    </el-row>
+
+    <!-- è¯Šæ–­è¿›åº¦å¼¹çª— -->
+    <el-dialog 
+      v-model="dialogTableVisible" 
+      title="è¯Šæ–­è¿›åº¦" 
+      :close-on-click-modal="false"
+      :show-close="false"
+      width="30%"
+      center
+    >
+      <div class="progress-container">
+        <el-progress type="dashboard" :percentage="percentage" :color="colors" />
+        <p class="progress-text">{{ progressStatus }}</p>
       </div>
-    </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineExpose } from 'vue'
-import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+import { ref, computed, onMounted, onUnmounted, defineExpose } from 'vue'
+import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { io } from 'socket.io-client'
 import PatientInfo from './PatientInfo.vue'
 import ImageWorkspace from './ImageWorkspace.vue'
 import FeatureAnalysis from './FeatureAnalysis.vue'
 import { getPatientInfo } from '../api/patient'
-import { uploadDcm, downloadTemplate as apiDownloadTemplate } from '../api/task'
+import { startTask, downloadTemplate, uploadDcm } from '../api/task'
 
-// ×´Ì¬±äÁ¿
-const centerDialogVisible = ref(true)
+const route = useRoute()
+
+// çŠ¶æ€å˜é‡
+const loading = ref(false)
 const dialogTableVisible = ref(false)
 const percentage = ref(0)
-const loading = ref(false)
-const showUploadButton = ref(true)
-const activeStep = ref(0)
-
+const progressStatus = ref('æ­£åœ¨å‡†å¤‡è¯Šæ–­ä»»åŠ¡...')
 const url1 = ref('')
 const url2 = ref('')
 const srcList = ref([])
 const srcList1 = ref([])
-const waitReturn = ref('µÈ´ýÉÏ´«')
 const featureList = ref([])
-const areaData = ref(0)
-const perimeterData = ref(0)
 
 const patient = ref({
-  ID: '',
-  ÐÕÃû: '',
-  ÐÔ±ð: '',
-  ÄêÁä: '',
-  µç»°: '',
-  ²¿Î»: ''
+  id: '',
+  name: '',
+  gender: '',
+  age: '',
+  phone: '',
+  part: ''
 })
+
+// æ˜ å°„æ˜¾ç¤ºç”¨çš„æ‚£è€…ä¿¡æ¯
+const displayPatient = computed(() => ({
+  'å§“å': patient.value.name,
+  'æ€§åˆ«': patient.value.gender,
+  'å¹´é¾„': patient.value.age,
+  'ç”µè¯': patient.value.phone,
+  'éƒ¨ä½': patient.value.part
+}))
 
 let socket = null
 let progressTimer = null
 
-// ³õÊ¼»¯ Socket
+// åˆå§‹åŒ– Socket
 const initSocket = () => {
   const socketUrl = process.env.VUE_APP_SOCKET_URL || 'http://127.0.0.1:5003'
+  console.log('[Socket] Connecting to:', socketUrl)
   socket = io(socketUrl)
   
   socket.on('connect', () => console.log('[Socket] Connected'))
   
   socket.on('task_completed', (data) => {
+    console.log('[Socket] Task completed:', data)
     updateResult(data)
   })
   
   socket.on('task_failed', (data) => {
+    console.error('[Socket] Task failed:', data)
     handleTaskFailed(data.error)
   })
 }
 
-// ¸üÐÂÔ¤²â½á¹û
+// æ›´æ–°é¢„æµ‹ç»“æžœ
 const updateResult = (data) => {
   stopProgress()
   percentage.value = 100
@@ -134,39 +125,39 @@ const updateResult = (data) => {
   loading.value = false
   dialogTableVisible.value = false
   
-  // ´¦ÀíÌØÕ÷Êý¾Ý
+  // å¤„ç†ç‰¹å¾æ•°æ®
   const info = data.image_info
   const list = []
-  Object.keys(info).forEach(key => {
-    if (Array.isArray(info[key])) {
-      list.push([info[key][0], info[key][1], key])
-    }
-  })
+  if (info) {
+    Object.keys(info).forEach(key => {
+      list.push({
+        name: key,
+        area: info[key].area,
+        perimeter: info[key].perimeter
+      })
+    })
+  }
   featureList.value = list
   
-  areaData.value = parseInt(info.area?.[1] || 0)
-  perimeterData.value = parseInt(info.perimeter?.[1] || 0)
-  
-  ElNotification({
-    title: 'Ô¤²â³É¹¦',
-    message: 'µã»÷Í¼Æ¬²é¿´´óÍ¼£¬ÏÂ·½ÏÔÊ¾Ö×ÁöÌØÕ÷Öµ¹©²Î¿¼',
-    type: 'success'
-  })
+  ElMessage.success('è¯Šæ–­å®Œæˆ')
 }
 
 const handleTaskFailed = (error) => {
   stopProgress()
-  dialogTableVisible.value = false
   loading.value = false
-  ElMessage.error('AIÔ¤²âÊ§°Ü: ' + error)
+  dialogTableVisible.value = false
+  ElMessage.error('è¯Šæ–­å¤±è´¥: ' + error)
 }
 
-// ½ø¶ÈÌõÄ£Äâ
+// è¿›åº¦æ¡æŽ§åˆ¶
 const startProgress = () => {
   percentage.value = 0
+  dialogTableVisible.value = true
+  progressStatus.value = 'æ­£åœ¨åˆ†æžå›¾åƒ...'
   progressTimer = setInterval(() => {
     if (percentage.value < 95) {
-      percentage.value += Math.floor(Math.random() * 5) + 1
+      percentage.value += Math.floor(Math.random() * 5)
+      if (percentage.value > 95) percentage.value = 95
     }
   }, 500)
 }
@@ -178,109 +169,134 @@ const stopProgress = () => {
   }
 }
 
-// ÒµÎñ·½·¨
-const searchPatient = async (id) => {
-  try {
-    const res = await getPatientInfo(id)
-    if (res.status === 1) {
-      patient.value = res.data
-      ElMessage.success('»ñÈ¡²¡ÈËÐÅÏ¢³É¹¦')
-    } else {
-      ElMessage.warning(res.error || 'Î´ÕÒµ½¸Ã²¡ÈË')
-    }
-  } catch (e) {
-    console.error(e)
+// å¼€å§‹è¯Šæ–­
+const handleStartDiagnosis = async () => {
+  if (!patient.value.id) {
+    ElMessage.warning('æœªæ‰¾åˆ°æ‚£è€…ä¿¡æ¯')
+    return
   }
-}
-
-const handleFile = async (file) => {
-  if (!file) return
   
   loading.value = true
-  showUploadButton.value = false
-  dialogTableVisible.value = true
   startProgress()
   
-  const formData = new FormData()
-  formData.append('file', file)
-  
   try {
-    const res = await uploadDcm(formData)
-    if (res && res.image_url) {
-      updateResult(res)
-    }
-  } catch (e) {
-    handleTaskFailed(e.message)
+    console.log('Starting task for patient:', patient.value.id)
+    await startTask(patient.value.id)
+  } catch (error) {
+    handleTaskFailed(error.message)
   }
 }
 
+// èŽ·å–æ‚£è€…æ•°æ®
+const fetchPatientData = async (id) => {
+  if (!id) return
+  try {
+    console.log('Fetching patient data for:', id)
+    const res = await getPatientInfo(id)
+    if (res.status === 1) {
+      const d = res.data
+      if (d) {
+        patient.value = {
+          id: d.ID || d.id || id,
+          name: d['å§“å'] || d.name || '',
+          gender: d['æ€§åˆ«'] || d.gender || '',
+          age: d['å¹´é¾„'] || d.age || '',
+          phone: d['ç”µè¯'] || d.phone || '',
+          part: d['éƒ¨ä½'] || d.part || ''
+        }
+      }
+    } else {
+      ElMessage.error(res.error || 'èŽ·å–æ‚£è€…ä¿¡æ¯å¤±è´¥')
+    }
+  } catch (error) {
+    console.error('Fetch patient error:', error)
+    ElMessage.error('èŽ·å–æ‚£è€…ä¿¡æ¯å¤±è´¥')
+  }
+}
+
+// ä¸‹è½½æ¨¡æ¿
 const downTemplate = async () => {
   try {
-    const data = await apiDownloadTemplate()
-    const url = window.URL.createObjectURL(new Blob([data]))
+    const res = await downloadTemplate()
+    const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', '²âÊÔCTÍ¼Ïñ.zip')
+    link.setAttribute('download', 'template.dcm')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    
-    ElMessage.success('ÏÂÔØ³É¹¦')
-    centerDialogVisible.value = false
-    activeStep.value = 1
-  } catch (e) {
-    ElMessage.error('ÏÂÔØÊ§°Ü')
+  } catch (error) {
+    ElMessage.error('ä¸‹è½½å¤±è´¥')
   }
 }
 
-const handleClose = (done) => {
-  ElMessageBox.confirm('È·ÈÏ¹Ø±Õ£¿').then(() => done()).catch(() => {})
+// å¤„ç†æ–‡ä»¶ä¸Šä¼ 
+const handleFile = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  loading.value = true
+  try {
+    const res = await uploadDcm(formData)
+    if (res.status === 1) {
+      ElMessage.success('ä¸Šä¼ æˆåŠŸ')
+      if (res.patient_id) {
+        fetchPatientData(res.patient_id)
+      }
+    } else {
+      ElMessage.error(res.error || 'ä¸Šä¼ å¤±è´¥')
+    }
+  } catch (error) {
+    ElMessage.error('ä¸Šä¼ è¯·æ±‚å¤±è´¥')
+  } finally {
+    loading.value = false
+  }
 }
 
-// ÉúÃüÖÜÆÚ
+// æš´éœ²æ–¹æ³•ç»™çˆ¶ç»„ä»¶
+defineExpose({
+  downTemplate,
+  handleFile
+})
+
+const colors = [
+  { color: '#f56c6c', percentage: 20 },
+  { color: '#e6a23c', percentage: 40 },
+  { color: '#5cb87a', percentage: 60 },
+  { color: '#1989fa', percentage: 80 },
+  { color: '#6f7ad3', percentage: 100 },
+]
+
 onMounted(() => {
+  const id = route.query.id
+  if (id) {
+    fetchPatientData(id)
+  }
   initSocket()
-  searchPatient() // Ä¬ÈÏ¼ÓÔØ
 })
 
 onUnmounted(() => {
   if (socket) socket.disconnect()
   stopProgress()
 })
-
-// ±©Â¶¸ø¸¸×é¼þ
-defineExpose({
-  downTemplate,
-  handleFile
-})
 </script>
 
 <style scoped>
-#Content {
-  width: 85%;
-  margin: 15px auto;
-  display: flex;
-  min-width: 1200px;
-  align-items: flex-start;
+.content-container {
+  padding: 20px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 120px);
 }
 
-#aside {
-  width: 25%;
-  padding: 30px;
-  margin-right: 40px;
-  position: sticky;
-  top: 20px;
-}
-
-#CT {
-  flex: 1;
+.progress-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  align-items: center;
+  padding: 20px 0;
 }
 
-#info_patient {
-  width: 100%;
+.progress-text {
+  margin-top: 20px;
+  font-size: 16px;
+  color: #606266;
 }
 </style>

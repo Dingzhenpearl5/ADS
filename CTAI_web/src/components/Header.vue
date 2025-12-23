@@ -64,6 +64,7 @@
 </template>
 <script>
     import { UserFilled, ArrowDown, User, Setting, SwitchButton, Download, Upload } from '@element-plus/icons-vue'
+    import { logout } from '../api/auth'
 
     export default {
         name: "AppHeader",
@@ -108,10 +109,7 @@
             },
             async handleLogout() {
                 try {
-                    const token = localStorage.getItem('token');
-                    await this.$http.post('http://127.0.0.1:5003/api/logout', {}, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    await logout();
                 } catch (e) {
                     console.error('登出请求失败', e);
                 }

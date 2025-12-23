@@ -5,17 +5,17 @@
         <div class="logo-container">
           <el-icon class="logo-icon" :size="40" color="#409EFF"><Monitor /></el-icon>
         </div>
-        <h1 class="system-title">Ö×Áö¸¨ÖúÕï¶ÏÏµÍ³</h1>
+        <h1 class="system-title">è‚¿ç˜¤è¾…åŠ©è¯Šæ–­ç³»ç»Ÿ</h1>
         <p class="system-subtitle">Tumor Aided Diagnosis System</p>
       </div>
       
       <el-card class="login-card" shadow="hover">
-        <h2 class="login-title">ÓÃ»§µÇÂ¼</h2>
+        <h2 class="login-title">ç”¨æˆ·ç™»å½•</h2>
         <el-form :model="loginForm" :rules="rules" ref="loginFormRef" size="large" class="login-form">
           <el-form-item prop="username">
             <el-input 
               v-model="loginForm.username" 
-              placeholder="ÇëÊäÈëÓÃ»§Ãû"
+              placeholder="è¯·è¾“å…¥ç”¨æˆ·å"
               :prefix-icon="User">
             </el-input>
           </el-form-item>
@@ -23,7 +23,7 @@
             <el-input 
               type="password" 
               v-model="loginForm.password" 
-              placeholder="ÇëÊäÈëÃÜÂë" 
+              placeholder="è¯·è¾“å…¥å¯†ç " 
               :prefix-icon="Lock"
               show-password
               @keyup.enter="handleLogin">
@@ -31,28 +31,28 @@
           </el-form-item>
           
           <div class="form-options">
-            <el-checkbox v-model="rememberMe">¼Ç×¡ÎÒ</el-checkbox>
-            <el-link type="primary" :underline="false">Íü¼ÇÃÜÂë?</el-link>
+            <el-checkbox v-model="rememberMe">è®°ä½æˆ‘</el-checkbox>
+            <el-link type="primary" :underline="false">å¿˜è®°å¯†ç ?</el-link>
           </div>
           
           <el-form-item>
             <el-button type="primary" @click="handleLogin" :loading="loading" class="login-button" round>
-              {{ loading ? 'µÇÂ¼ÖĞ...' : 'Á¢¼´µÇÂ¼' }}
+              {{ loading ? 'ç™»å½•ä¸­...' : 'ç«‹å³ç™»å½•' }}
             </el-button>
           </el-form-item>
         </el-form>
         
         <div class="login-footer">
           <div class="account-info">
-            <p><span>¹ÜÀíÔ±:</span> admin / 123456</p>
-            <p><span>Ò½Éú:</span> doctor / doctor123</p>
+            <p><span>ç®¡ç†å‘˜:</span> admin / 123456</p>
+            <p><span>åŒ»ç”Ÿ:</span> doctor / doctor123</p>
           </div>
         </div>
       </el-card>
     </div>
     
     <div class="copyright">
-      <p> 2023 Ö×Áö¸¨ÖúÕï¶ÏÏµÍ³ | CTAI System</p>
+      <p>Â© 2023 è‚¿ç˜¤è¾…åŠ©è¯Šæ–­ç³»ç»Ÿ | CTAI System</p>
     </div>
   </div>
 </template>
@@ -76,12 +76,12 @@ const loginForm = reactive({
 
 const rules = {
   username: [
-    { required: true, message: 'ÇëÊäÈëÓÃ»§Ãû', trigger: 'blur' },
-    { min: 2, max: 20, message: 'ÓÃ»§Ãû³¤¶ÈÔÚ 2 µ½ 20 ¸ö×Ö·û', trigger: 'blur' }
+    { required: true, message: 'è¯·è¾“å…¥ç”¨æˆ·å', trigger: 'blur' },
+    { min: 2, max: 20, message: 'ç”¨æˆ·åé•¿åº¦åœ¨ 2 åˆ° 20 ä¸ªå­—ç¬¦', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: 'ÇëÊäÈëÃÜÂë', trigger: 'blur' },
-    { min: 4, max: 30, message: 'ÃÜÂë³¤¶ÈÔÚ 4 µ½ 30 ¸ö×Ö·û', trigger: 'blur' }
+    { required: true, message: 'è¯·è¾“å…¥å¯†ç ', trigger: 'blur' },
+    { min: 4, max: 30, message: 'å¯†ç é•¿åº¦åœ¨ 4 åˆ° 30 ä¸ªå­—ç¬¦', trigger: 'blur' }
   ]
 }
 
@@ -91,6 +91,7 @@ const checkLoginStatus = async () => {
     try {
       const res = await checkAuth()
       if (res.status === 1) {
+        console.log('Already logged in, redirecting to /home')
         router.push('/home')
       }
     } catch (error) {
@@ -107,13 +108,18 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
+        console.log('Attempting login for:', loginForm.username)
         const res = await login({
           username: loginForm.username,
           password: loginForm.password
         })
         
+        console.log('Login response:', res)
+        
         if (res.status === 1) {
-          const { token, user } = res
+          const { token } = res.data
+          const user = res.data
+          
           localStorage.setItem('token', token)
           localStorage.setItem('userInfo', JSON.stringify(user))
           
@@ -123,13 +129,15 @@ const handleLogin = async () => {
             localStorage.removeItem('rememberedUsername')
           }
           
-          ElMessage.success(`»¶Ó­»ØÀ´£¬${user.name}£¡`)
+          ElMessage.success(`æ¬¢è¿å›æ¥ï¼Œ${user.name || user.username || 'ç”¨æˆ·'}ï¼`)
+          console.log('Login successful, pushing to /home')
           router.push('/home')
         } else {
-          ElMessage.error(res.error || 'µÇÂ¼Ê§°Ü')
+          ElMessage.error(res.error || 'ç™»å½•å¤±è´¥')
         }
       } catch (error) {
-        console.error('µÇÂ¼ÇëÇóÊ§°Ü:', error)
+        console.error('ç™»å½•è¯·æ±‚å¤±è´¥:', error)
+        ElMessage.error('ç™»å½•è¯·æ±‚å¤±è´¥ï¼Œè¯·æ£€æŸ¥ç½‘ç»œæˆ–åç«¯æœåŠ¡')
       } finally {
         loading.value = false
       }
@@ -149,95 +157,55 @@ onMounted(() => {
 
 <style scoped>
 .login-container {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  background-image: url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80');
-  background-size: cover;
-  background-position: center;
-  position: relative;
-}
-
-.login-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 0;
 }
 
 .login-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  max-width: 450px;
-  padding: 20px;
+  width: 400px;
 }
 
 .login-header {
   text-align: center;
   margin-bottom: 30px;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .logo-container {
-  background: rgba(255, 255, 255, 0.9);
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 0 auto 15px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  margin-bottom: 10px;
 }
 
 .system-title {
   font-size: 28px;
-  margin: 0 0 5px;
+  color: #303133;
+  margin: 10px 0;
   font-weight: 600;
-  letter-spacing: 1px;
 }
 
 .system-subtitle {
   font-size: 14px;
-  margin: 0;
-  opacity: 0.9;
-  font-weight: 300;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  color: #909399;
+  letter-spacing: 1px;
 }
 
 .login-card {
-  width: 100%;
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 20px;
   border: none;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
 }
 
 .login-title {
   text-align: center;
-  color: #303133;
-  margin: 10px 0 25px;
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 22px;
+  color: #409EFF;
+  margin-bottom: 30px;
 }
 
 .login-form {
-  padding: 0 10px;
+  margin-top: 20px;
 }
 
 .form-options {
@@ -249,58 +217,31 @@ onMounted(() => {
 
 .login-button {
   width: 100%;
+  height: 45px;
   font-size: 16px;
-  padding: 12px 0;
-  letter-spacing: 2px;
-  background: linear-gradient(90deg, #409EFF 0%, #3a8ee6 100%);
-  border: none;
-  transition: all 0.3s;
-}
-
-.login-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+  margin-top: 10px;
 }
 
 .login-footer {
-  margin-top: 10px;
-  padding-top: 15px;
+  margin-top: 30px;
+  padding-top: 20px;
   border-top: 1px solid #ebeef5;
 }
 
 .account-info {
-  background: #f0f9eb;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #67c23a;
-}
-
-.account-info p {
-  margin: 3px 0;
-  display: flex;
-  justify-content: space-between;
+  font-size: 13px;
+  color: #909399;
+  line-height: 1.8;
 }
 
 .account-info span {
   font-weight: bold;
+  margin-right: 5px;
 }
 
 .copyright {
-  position: absolute;
-  bottom: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  margin-top: 50px;
   font-size: 12px;
-  z-index: 1;
-}
-
-@media (max-width: 480px) {
-  .login-content {
-    padding: 15px;
-  }
-  
-  .system-title {
-    font-size: 24px;
-  }
+  color: #909399;
 }
 </style>

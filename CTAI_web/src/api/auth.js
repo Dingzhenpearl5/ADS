@@ -14,3 +14,10 @@ export function checkAuth() {
         method: 'get'
     })
 }
+
+export function logout() {
+    return request({
+        url: '/api/logout',
+        method: 'post'
+    })
+}
