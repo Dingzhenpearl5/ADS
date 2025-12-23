@@ -1,1222 +1,286 @@
 <template>
-    <div id="Content">
-        <el-dialog
-            id="hello"
-            title="肿瘤辅助诊断系统使用须知"
-            v-model="centerDialogVisible"
-            width="65%"
-            :before-close="handleClose"
-        >
-            <el-steps :active="5" finish-status="process ">
-                <el-step title="步骤1" style="width:280px;padding-left: 50px">
-                    <template #description>
-                        <p style="font-size: 16px">下载测试CT文件文件</p>
-                        <br>
-                        <br>
-                    </template>
-                </el-step>
-                <el-step title="步骤2" style="width:260px;margin-left:-5px;">
-                    <template #description>
-                        <p>上传CT图像至服务器</p>
-                        <p>使用训练的模型预测肿瘤区域</p>
-                        <p>并返回肿瘤区域特征</p>
-                    </template>
-                </el-step>
-                <el-step title="步骤3" style="width:260px;margin-left:-5px;">
-                    <template #description>
-                        <div>
-                            <p>根据预测的肿瘤区域和特征</p>
-                            <p>进行辅助诊断</p>
-                            <br>
-                        </div>
-                    </template>
-                </el-step>
-            </el-steps>
-            <template #footer>
-                <span class="dialog-footer">
-                    <el-button type="primary" @click="welcome">下载测试CT图像</el-button>
-                </span>
-            </template>
-        </el-dialog>
-        <el-dialog
-            title="AI预测中"
-            v-model="dialogTableVisible"
-            :show-close="false"
-            :close-on-press-escape="false"
-            :append-to-body="true"
-            :close-on-click-modal="false"
-            :center="true"
-        >
-            <el-progress :percentage="percentage"></el-progress>
-            <template #footer>
-                <span class="dialog-footer">非GPU学生服务器性能有限，请耐心等待约一分钟</span>
-            </template>
-        </el-dialog>
+  <div id="Content">
+    <!-- ʹ����֪�Ի��� -->
+    <el-dialog
+      title="�����������ϵͳʹ����֪"
+      v-model="centerDialogVisible"
+      width="65%"
+      :before-close="handleClose"
+    >
+      <el-steps :active="activeStep" finish-status="success">
+        <el-step title="����1" description="���ز���CT�ļ�" />
+        <el-step title="����2" description="�ϴ�CTͼ��Ԥ��" />
+        <el-step title="����3" description="�鿴������Ͻ��" />
+      </el-steps>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button type="primary" @click="downTemplate">���ز���CTͼ��</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
-        <div id="aside">
-            <!-- 查看病人信息 -->
-            <el-card class="box-card" style="width:250px;height:auto">
-                <template #header>
-                    <div class="clearfix">
-                        <span>病人信息</span>
-                    </div>
-                </template>
-                
-                <!-- 搜索框 -->
-                <div style="margin-bottom: 15px; display: flex;">
-                    <el-input 
-                        v-model="searchId" 
-                        placeholder="输入ID搜索" 
-                        size="small" 
-                        style="margin-right: 5px;"
-                        @keyup.enter="searchPatient"
-                    ></el-input>
-                    <el-button type="primary" :icon="Search" circle size="small" @click="searchPatient"></el-button>
-                </div>
+    <!-- AIԤ����ȶԻ��� -->
+    <el-dialog
+      title="AIԤ����"
+      v-model="dialogTableVisible"
+      :show-close="false"
+      :close-on-press-escape="false"
+      :append-to-body="true"
+      :close-on-click-modal="false"
+      :center="true"
+    >
+      <el-progress :percentage="percentage"></el-progress>
+      <template #footer>
+        <span class="dialog-footer">��GPUѧ���������������ޣ������ĵȴ�Լһ����</span>
+      </template>
+    </el-dialog>
 
-                <div v-for="(value,name) in patient" :key="name" class="text item">
-                    <h3 style="font-weight:normal;">{{name}}:{{value}}</h3>
-                </div>
-            </el-card>
-        </div>
-        <!-- 上传返回信息部分：原CT图部分  标出肿瘤的CT图像 图像特征-->
-        <div id="CT">
-            <!-- CT图像 -->
-            <div id="CT_image">
-                <!-- 原CT图 -->
-                <el-card
-                    id="CT_image_1"
-                    class="box-card"
-                    style="border-radius: 8px;width:800px;height:360px;margin-bottom:-30px;"
-                >
-                    <div class="demo-image__preview1">
-                        <div
-                            v-loading="loading"
-                            element-loading-text="上传图片中"
-                        >
-                            <el-image
-                                :src="url_1"
-                                class="image_1"
-                                :preview-src-list="srcList"
-                                style="border-radius: 3px 3px 0 0"
-                            >
-                                <template #error>
-                                    <div class="error">
-                                        <el-button
-                                            v-show="showbutton"
-                                            type="primary"
-                                            :icon="Upload"
-                                            class="download_bt"
-                                            @click="true_upload"
-                                        >
-                                            上传dcm文件
-                                            <input
-                                                ref="upload"
-                                                style="display: none"
-                                                name="file"
-                                                type="file"
-                                                @change="update"
-                                            >
-                                        </el-button>
-                                    </div>
-                                </template>
-                            </el-image>
-                        </div>
-                        <!-- 原CT图文字 -->
-                        <div class="img_info_1" style="border-radius:0 0 5px 5px;">
-                            <span style="color:white;letter-spacing:6px;">原CT图像</span>
-                        </div>
-                    </div>
-                    <!-- 标出肿瘤的CT图像 -->
-                    <div class="demo-image__preview2">
-                        <div
-                            v-loading="loading"
-                            element-loading-text="处理中,请耐心等待"
-                        >
-                            <el-image
-                                :src="url_2"
-                                class="image_1"
-                                :preview-src-list="srcList1"
-                                style="border-radius: 3px 3px 0 0;"
-                            >
-                                <template #error>
-                                    <div class="error">{{wait_return}}</div>
-                                </template>
-                            </el-image>
-                        </div>
-                        <!-- 标出肿瘤的CT图像文字 -->
-                        <div class="img_info_1" style="border-radius: 0 0 5px 5px;">
-                            <span style="color:white;letter-spacing:4px;">标出肿瘤的CT图像</span>
-                        </div>
-                    </div>
-                </el-card>
-            </div>
-
-
-            <!-- 分割线 -->
-
-            <!-- 图像特征部分 -->
-            <div id="info_patient">
-                <!-- 卡片放置表格 -->
-                <el-card style="border-radius: 8px;">
-                    <template #header>
-                        <div class="clearfix">
-                            <span>肿瘤区域特征值</span>
-                            <el-button
-                                style="margin-left: 35px"
-                                v-show="!showbutton"
-                                type="primary"
-                                :icon="Upload"
-                                class="download_bt"
-                                @click="true_upload2"
-                            >
-                                重新选择图像
-                                <input
-                                    ref="upload2"
-                                    style="display: none"
-                                    name="file"
-                                    type="file"
-                                    @change="update"
-                                >
-                            </el-button>
-                        </div>
-                    </template>
-
-
-                    <el-tabs v-model="activeName" @tab-click="handleClick">
-                        <el-tab-pane label="肿瘤区域特征值" name="first">
-                            <!-- 表格存放特征值 -->
-                            <el-table
-                                :data="feature_list"
-                                height="390"
-                                border
-                                style="width:750px;text-align:center;"
-                                v-loading="loading"
-                                element-loading-text="数据正在处理中，请耐心等待"
-                                lazy
-                            >
-                                <el-table-column label="Feature" width="250px">
-                                    <template #default="scope">
-                                        <span>{{scope.row[2]}}</span>
-                                    </template>
-                                </el-table-column>
-                                <!-- 特征名 -->
-                                <el-table-column label="特征名" width="250px">
-                                    <template #default="scope">
-                                        <span>{{scope.row[0]}}</span>
-                                    </template>
-                                </el-table-column>
-
-                                <!-- 特征值 -->
-                                <el-table-column label="特征值" width="250px">
-                                    <template #default="scope">
-                                        <span>{{scope.row[1]}}</span>
-                                    </template>
-                                </el-table-column>
-                            </el-table>
-                        </el-tab-pane>
-                        <el-tab-pane label="面积对比" name="second" style="width:750px;height:390px;">
-                            <div id="areaCompare">
-                                <el-table
-
-                                    :data="feature_list"
-                                    height="390"
-                                    border
-                                    style="width:750px;text-align:center;"
-                                    v-loading="loading"
-                                    element-loading-text="数据正在处理中，请耐心等待"
-                                >
-                                    <el-table-column label="Feature" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[2]}}</span>
-                                        </template>
-                                    </el-table-column>
-                                    <!-- 特征名 -->
-                                    <el-table-column label="特征名" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[0]}}</span>
-                                        </template>
-                                    </el-table-column>
-
-                                    <!-- 特征值 -->
-                                    <el-table-column label="特征值" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[1]}}</span>
-                                        </template>
-                                    </el-table-column>
-                                </el-table>
-                            </div>
-                            <div id="area" style="width: 750px;height:400px;margin-bottom:20px;"></div>
-                        </el-tab-pane>
-                        <el-tab-pane label="周长对比" name="third" style="width:750px;height:390px;">
-                            <div id="perimeterCompare">
-                                <el-table
-
-                                    :data="feature_list"
-                                    height="390"
-                                    border
-                                    style="width:750px;text-align:center;"
-                                    v-loading="loading"
-                                    element-loading-text="数据正在处理中，请耐心等待"
-                                >
-                                    <el-table-column label="Feature" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[2]}}</span>
-                                        </template>
-                                    </el-table-column>
-                                    <!-- 特征名 -->
-                                    <el-table-column label="特征名" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[0]}}</span>
-                                        </template>
-                                    </el-table-column>
-
-                                    <!-- 特征值 -->
-                                    <el-table-column label="特征值" width="250px">
-                                        <template #default="scope">
-                                            <span>{{scope.row[1]}}</span>
-                                        </template>
-                                    </el-table-column>
-                                </el-table>
-                            </div>
-
-                            <div id="perimeter" style="width: 750px;height:400px;margin-bottom:20px;"></div>
-                        </el-tab-pane>
-                    </el-tabs>
-                </el-card>
-            </div>
-        </div>
+    <!-- �������������Ϣ -->
+    <div id="aside">
+      <PatientInfo :patient="patient" @search="searchPatient" />
     </div>
+
+    <!-- �������ݣ�ͼ������������ -->
+    <div id="CT">
+      <ImageWorkspace 
+        :url1="url1" 
+        :url2="url2" 
+        :srcList="srcList" 
+        :srcList1="srcList1"
+        :loading="loading"
+        :showUploadButton="showUploadButton"
+        :waitReturn="waitReturn"
+        @upload="handleFile"
+      />
+
+      <div id="info_patient">
+        <FeatureAnalysis 
+          :featureList="featureList"
+          :loading="loading"
+          :showUploadButton="showUploadButton"
+          :areaData="areaData"
+          :perimeterData="perimeterData"
+          @upload="handleFile"
+        />
+      </div>
+    </div>
+  </div>
 </template>
 
-<script>
-    import axios from "axios";
-    import { Upload, Download, Search } from '@element-plus/icons-vue'
-    import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
-    import { io } from 'socket.io-client'
+<script setup>
+import { ref, onMounted, onUnmounted, defineExpose } from 'vue'
+import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+import { io } from 'socket.io-client'
+import PatientInfo from './PatientInfo.vue'
+import ImageWorkspace from './ImageWorkspace.vue'
+import FeatureAnalysis from './FeatureAnalysis.vue'
+import { getPatientInfo } from '../api/patient'
+import { uploadDcm, downloadTemplate as apiDownloadTemplate } from '../api/task'
 
-    export default {
-        name: "AppContent",
-        created() {
-            this.initSocket();
-        },
-        data() {
-            return {
-                socket: null,
-                Upload,
-                Download,
-                Search,
-                // server_url:'http://58.87.66.50:5003',
-                server_url:'http://127.0.0.1:5003',
-                perimeter_picture_data: 0,
-                area_picture_data: 0,
-                activeName: "first",
-                active: 0,
-                centerDialogVisible: true,
-                url_1: "",
-                url_2: "",
-                textarea: "",
-                srcList: [],
-                srcList1: [],
-                feature_list: [],
-                feature_list_1: [],
-                feat_list: [],
-                url: "",
-                visible: false,
-                wait_return: "等待上传",
-                wait_upload: "等待上传",
-                loading: false,
-                table: false,
-                isNav: false,
-                showbutton: true,
-                percentage: 0,
-                fullscreenLoading: false,
-                opacitys: {
-                    opacity: 0
-                },
-                dialogTableVisible: false,
-                searchId: "",
-                patient: {
-                    ID: "",
-                    姓名: "",
-                    性别: "",
-                    年龄: "",
-                    电话: "",
-                    部位: ""
-                }
-            };
-        },
-        created: function () {
-            document.title = '肿瘤辅助诊断系统';
-            // 默认加载第一个病人，或者可以注释掉等待用户搜索
-            this.searchPatient();
-        },
-        methods: {
-            initSocket() {
-                console.log("[Socket] 正在连接到:", this.server_url);
-                this.socket = io(this.server_url);
-                
-                this.socket.on('connect', () => {
-                    console.log("[Socket] 已连接");
-                });
-                
-                this.socket.on('task_completed', (data) => {
-                    console.log("[Socket] 任务完成:", data);
-                    this.updateResult(data);
-                });
-                
-                this.socket.on('task_failed', (data) => {
-                    console.error("[Socket] 任务失败:", data);
-                    this.dialogTableVisible = false;
-                    this.loading = false;
-                    this.fullscreenLoading = false;
-                    ElMessage.error('AI预测失败: ' + data.error);
-                });
-                
-                this.socket.on('disconnect', () => {
-                    console.log("[Socket] 已断开连接");
-                });
-            },
-            updateResult(data) {
-                this.percentage = 100;
-                this.url_1 = data.image_url;
-                this.srcList.push(this.url_1);
-                this.url_2 = data.draw_url;
-                this.srcList1.push(this.url_2);
-                this.fullscreenLoading = false;
-                this.loading = false;
+// ״̬����
+const centerDialogVisible = ref(true)
+const dialogTableVisible = ref(false)
+const percentage = ref(0)
+const loading = ref(false)
+const showUploadButton = ref(true)
+const activeStep = ref(0)
 
-                this.feat_list = Object.keys(data.image_info);
-                this.feature_list = []; // 清空旧数据
+const url1 = ref('')
+const url2 = ref('')
+const srcList = ref([])
+const srcList1 = ref([])
+const waitReturn = ref('�ȴ��ϴ�')
+const featureList = ref([])
+const areaData = ref(0)
+const perimeterData = ref(0)
 
-                for (var i = 0; i < this.feat_list.length; i++) {
-                    data.image_info[this.feat_list[i]][2] = this.feat_list[i];
-                    this.feature_list.push(data.image_info[this.feat_list[i]]);
-                }
+const patient = ref({
+  ID: '',
+  ����: '',
+  �Ա�: '',
+  ����: '',
+  �绰: '',
+  ��λ: ''
+})
 
-                this.feature_list.push(data.image_info);
-                this.feature_list_1 = this.feature_list[0];
-                
-                this.dialogTableVisible = false;
-                this.percentage = 0;
-                this.notice1();
-                
-                this.$nextTick(() => {
-                    this.initCharts(data.image_info);
-                });
-            },
-            initCharts(image_info) {
-                var areaCompare = document.getElementById("areaCompare");
-                if (areaCompare) areaCompare.style.display = "none";
-                var perimeterCompare = document.getElementById("perimeterCompare");
-                if (perimeterCompare) perimeterCompare.style.display = "none";
-                
-                let areaEl = document.getElementById("area");
-                let perimeterEl = document.getElementById("perimeter");
-                
-                if (areaEl) {
-                    let myChart_area = this.$echarts.init(areaEl);
-                    this.area_picture_data = parseInt(image_info["area"][1]);
-                    myChart_area.setOption({
-                        xAxis: {
-                            type: "category",
-                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                        },
-                        yAxis: {
-                            type: "value",
-                            name: "面积"
-                        },
-                        series: [
-                            {
-                                name: "面积",
-                                type: "line",
-                                data: [1300, 1290, 1272, 1123.5, 1123, 1092, 1086, this.area_picture_data]
-                            }
-                        ]
-                    });
-                }
-                
-                if (perimeterEl) {
-                    let myChart_perimeter = this.$echarts.init(perimeterEl);
-                    this.perimeter_picture_data = parseInt(image_info["perimeter"][1]);
-                    myChart_perimeter.setOption({
-                        xAxis: {
-                            type: "category",
-                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                        },
-                        yAxis: {
-                            type: "value",
-                            name: "周长"
-                        },
-                        series: [
-                            {
-                                name: "周长",
-                                type: "line",
-                                data: [250, 243, 235, 221, 218, 210, 205, this.perimeter_picture_data]
-                            }
-                        ]
-                    });
-                }
-            },
-            async searchPatient() {
-                try {
-                    const params = this.searchId ? { id: this.searchId } : {};
-                    const res = await this.$http.get('http://127.0.0.1:5003/api/patient', { params });
-                    if (res.data.status === 1) {
-                        this.patient = res.data.data;
-                        this.$message.success('获取病人信息成功');
-                    } else {
-                        this.$message.warning(res.data.error || '未找到该病人');
-                        // 清空显示
-                        this.patient = { ID: "", 姓名: "", 性别: "", 年龄: "", 电话: "", 部位: "" };
-                    }
-                } catch (e) {
-                    console.error('获取病人信息失败', e);
-                    this.$message.error('网络请求失败');
-                }
-            },
-            true_upload() {
-                this.$refs.upload.click();
-            },
-            true_upload2() {
-                this.$refs.upload2.click();
-            },
-            handleClose(done) {
-                ElMessageBox.confirm("确认关闭？")
-                    .then(() => {
-                        done();
-                    })
-                    .catch(() => {
-                    });
-            },
-            next() {
-                this.active++;
-            },
-            // 获得目标文件
-            getObjectURL(file) {
-                var url = null;
-                if (window.createObjcectURL != undefined) {
-                    url = window.createOjcectURL(file);
-                } else if (window.URL != undefined) {
-                    url = window.URL.createObjectURL(file);
-                } else if (window.webkitURL != undefined) {
-                    url = window.webkitURL.createObjectURL(file);
-                }
-                return url;
-            },
-            // 点击切换
-            handleClick(tab) {
-                if (tab.props.name == "second") {
-                    this.drawChart();
-                    var myChart_area = this.$echarts.init(document.getElementById('area'));
-                    // myChart_area.clear();
-                    myChart_area.setOption({
-                        xAxis: {
-                            type: "category",
-                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                        },
-                        yAxis: {
-                            type: "value",
-                            name: "面积"
-                        },
-                        areaStyle: {},
-                        legend: {
-                            data: [""]
-                        },
-                        series: [
-                            {
-                                // 根据名字对应到相应的系列
-                                name: "面积",
-                                type: "line",
-                                data: [
-                                    1300,
-                                    1290,
-                                    1272,
-                                    1123.5,
-                                    1123,
-                                    1092,
-                                    1086,
-                                    this.area_picture_data
-                                ]
-                            }
-                        ]
-                    });
-                } else if (tab.props.name == "third") {
-                    this.drawChart();
-                    var myChart_perimeter = this.$echarts.init(document.getElementById('perimeter'));
-                    myChart_perimeter.setOption({
-                        xAxis: {
-                            type: "category",
-                            data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                        },
-                        yAxis: {
-                            type: "value",
-                            name: "周长"
-                        },
-                        areaStyle: {},
-                        series: [
-                            {
-                                // 根据名字对应到相应的系列
-                                name: "周长",
-                                type: "line",
-                                data: [
-                                    250,
-                                    243,
-                                    227,
-                                    201,
-                                    197,
-                                    170,
-                                    159,
-                                    this.perimeter_picture_data
-                                ]
-                            }
-                        ]
-                    });
-                }
-            },
-            // 处理上传的文件
-            handleFile(file) {
-                if (!file) return;
-                
-                this.percentage = 0;
-                this.dialogTableVisible = true;
-                this.url_1 = "";
-                this.url_2 = "";
-                this.srcList = [];
-                this.srcList1 = [];
-                this.wait_return = "";
-                this.wait_upload = "";
-                this.feature_list = [];
-                
-                // 尝试重置图表，如果元素存在
-                try {
-                    let areaEl = document.getElementById("area");
-                    if (areaEl) {
-                        let myChart_area = this.$echarts.init(areaEl);
-                        myChart_area.setOption({
-                            series: [{ data: [""] }]
-                        });
-                    }
-                } catch(e) { console.log(e) }
+let socket = null
+let progressTimer = null
 
-                this.feat_list = [];
-                this.fullscreenLoading = true;
-                this.loading = true;
-                this.showbutton = false;
-                
-                this.url_1 = this.$options.methods.getObjectURL(file);
-                let param = new FormData(); //创建form对象
-                param.append("file", file, file.name); //通过append向form对象添加数据
-                
-                var timer = setInterval(() => {
-                    this.myFunc();
-                }, 30);
-                let config = {
-                    headers: {"Content-Type": "multipart/form-data"}
-                }; //添加请求头
-                axios
-                    .post(this.server_url+"/upload", param, config)
-                    .then(response => {
-                        this.percentage = 100;
-                        clearInterval(timer);
-                        this.url_1 = response.data.image_url;
-                        this.srcList.push(this.url_1);
-                        this.url_2 = response.data.draw_url;
-                        this.srcList1.push(this.url_2);
-                        this.fullscreenLoading = false;
-                        this.loading = false;
+// ��ʼ�� Socket
+const initSocket = () => {
+  const socketUrl = process.env.VUE_APP_SOCKET_URL || 'http://127.0.0.1:5003'
+  socket = io(socketUrl)
+  
+  socket.on('connect', () => console.log('[Socket] Connected'))
+  
+  socket.on('task_completed', (data) => {
+    updateResult(data)
+  })
+  
+  socket.on('task_failed', (data) => {
+    handleTaskFailed(data.error)
+  })
+}
 
-                        this.feat_list = Object.keys(response.data.image_info);
+// ����Ԥ����
+const updateResult = (data) => {
+  stopProgress()
+  percentage.value = 100
+  url1.value = data.image_url
+  srcList.value = [data.image_url]
+  url2.value = data.draw_url
+  srcList1.value = [data.draw_url]
+  
+  loading.value = false
+  dialogTableVisible.value = false
+  
+  // ������������
+  const info = data.image_info
+  const list = []
+  Object.keys(info).forEach(key => {
+    if (Array.isArray(info[key])) {
+      list.push([info[key][0], info[key][1], key])
+    }
+  })
+  featureList.value = list
+  
+  areaData.value = parseInt(info.area?.[1] || 0)
+  perimeterData.value = parseInt(info.perimeter?.[1] || 0)
+  
+  ElNotification({
+    title: 'Ԥ��ɹ�',
+    message: '���ͼƬ�鿴��ͼ���·���ʾ��������ֵ���ο�',
+    type: 'success'
+  })
+}
 
-                        for (var i = 0; i < this.feat_list.length; i++) {
-                            response.data.image_info[this.feat_list[i]][2] = this.feat_list[i];
-                            this.feature_list.push(response.data.image_info[this.feat_list[i]]);
-                        }
+const handleTaskFailed = (error) => {
+  stopProgress()
+  dialogTableVisible.value = false
+  loading.value = false
+  ElMessage.error('AIԤ��ʧ��: ' + error)
+}
 
-                        this.feature_list.push(response.data.image_info);
-                        this.feature_list_1 = this.feature_list[0];
-                        JSON.stringify(response.data.image_info, (key, value) => {
-                            console.log(key);
-                            console.log(value);
-                        });
-                        this.dialogTableVisible = false;
-                        this.percentage = 0;
-                        this.notice1();
-                        var areaCompare = document.getElementById("areaCompare");
-                        areaCompare.style.display = "none";
-                        var perimeterCompare = document.getElementById("perimeterCompare");
-                        perimeterCompare.style.display = "none";
-                        let myChart_area = this.$echarts.init(
-                            document.getElementById("area")
-                        );
-                        let myChart_perimeter = this.$echarts.init(
-                            document.getElementById("perimeter")
-                        );
-                        this.perimeter_picture_data = parseInt(response.data.image_info["perimeter"][1]);
-                        this.area_picture_data = parseInt(response.data.image_info["area"][1]);
-                        myChart_area.setOption({
-                            xAxis: {
-                                type: "category",
-                                data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                            },
-                            yAxis: {
-                                type: "value",
-                                name: "面积"
-                            },
-                            areaStyle: {},
-                            legend: {
-                                data: [""]
-                            },
-                            series: [
-                                {
-                                    // 根据名字对应到相应的系列
-                                    name: "面积",
-                                    type: "line",
-                                    data: [
-                                        1300,
-                                        1290,
-                                        1272,
-                                        1123.5,
-                                        1123,
-                                        1092,
-                                        1086,
-                                        response.data.image_info["area"][1]
-                                    ]
-                                }
-                            ]
-                        });
+// ������ģ��
+const startProgress = () => {
+  percentage.value = 0
+  progressTimer = setInterval(() => {
+    if (percentage.value < 95) {
+      percentage.value += Math.floor(Math.random() * 5) + 1
+    }
+  }, 500)
+}
 
-                        myChart_perimeter.setOption({
-                            xAxis: {
-                                type: "category",
-                                data: ["1", "2", "3", "4", "5", "6", "7", "8"]
-                            },
-                            yAxis: {
-                                type: "value",
-                                name: "周长"
-                            },
-                            areaStyle: {},
-                            series: [
-                                {
-                                    // 根据名字对应到相应的系列
-                                    name: "周长",
-                                    type: "line",
-                                    data: [
-                                        250,
-                                        243,
-                                        227,
-                                        201,
-                                        197,
-                                        170,
-                                        159,
-                                        response.data.image_info["perimeter"]
-                                    ]
-                                }
-                            ]
-                        });
-                    });
-            },
-            // 兼容旧的update方法，如果还有地方调用
-            update(e) {
-                let file = e.target.files[0];
-                this.handleFile(file);
-            },
-            // 下载 点击按钮 从远程接口获取文件
-            downTemplate() {
-                axios({
-                    method: "get",
-                    url:
-                        "https://cso1-1254043908.cos.ap-beijing.myqcloud.com/ct/testfile.7z",
-                    responseType: "blob"
-                }).then(res => {
-                    this.downloads(res.data, res.headers.filename);
+const stopProgress = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
 
-                    if (res.status === 200) {
-                        ElMessage({
-                            message: "下载成功",
-                            type: "success"
-                        });
-                        if (this.active == 0) {
-                            this.next();
-                        }
-                    } else {
-                        ElMessage({
-                            showClose: true,
-                            message: "下载失败，请重试",
-                            type: "error"
-                        });
-                    }
-                });
-            },
-            myFunc() {
-                if (this.percentage + 33 < 99) {
-                    this.percentage = this.percentage + 33;
-                    console.log(this.percentage);
-                } else {
-                    this.percentage = 99;
-                }
-            },
-            drawChart() {
-                // 基于准备好的dom，初始化echarts实例
-                let myChart_area = this.$echarts.init(document.getElementById("area"));
-                let myChart_perimeter = this.$echarts.init(
-                    document.getElementById("perimeter")
-                );
-                // 指定图表的配置项和数据
-                myChart_area.setOption({
-                    title: {
-                        text: "肿瘤面积变化",
-                        subtext: "Tumor Area Change",
-                        left: "center"
-                    },
-                    legend: {
-                        data: [""]
-                    },
-                    tooltip: {},
+// ҵ�񷽷�
+const searchPatient = async (id) => {
+  try {
+    const res = await getPatientInfo(id)
+    if (res.status === 1) {
+      patient.value = res.data
+      ElMessage.success('��ȡ������Ϣ�ɹ�')
+    } else {
+      ElMessage.warning(res.error || 'δ�ҵ��ò���')
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
-                    grid: {
-                        //显示数据的图表位于当前canvas的坐标轴
-                        x: 50,
-                        y: 55,
-                        x2: 50,
-                        y2: 60,
-                        borderWidth: 1
-                    },
+const handleFile = async (file) => {
+  if (!file) return
+  
+  loading.value = true
+  showUploadButton.value = false
+  dialogTableVisible.value = true
+  startProgress()
+  
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  try {
+    const res = await uploadDcm(formData)
+    if (res && res.image_url) {
+      updateResult(res)
+    }
+  } catch (e) {
+    handleTaskFailed(e.message)
+  }
+}
 
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            dataZoom: {
-                                yAxisIndex: "none"
-                            },
-                            dataView: {readOnly: false},
-                            magicType: {type: ["line", "bar"]},
-                            restore: {},
-                            saveAsImage: {}
-                        }
-                    },
-                    xAxis: {
-                        type: "category",
-                        boundaryGap: false,
-                        data: ["1", "2", "3", "4", "5", "6", "7", "8"],
-                        name: "治疗时间（周）",
-                        nameLocation: "middle",
-                        nameTextStyle: {
-                            padding: 14,
-                            fontSize: 14
-                        }
-                    },
-                    yAxis: {
-                        type: "value",
-                        name: "肿瘤面积",
-                        nameTextStyle: {
-                            padding: 4,
-                            fontSize: 14
-                        },
-                        max: 1800
-                    },
-                    series: [
-                        {
-                            name: "面积",
-                            type: "bar",
-                            data: []
-                        }
-                    ]
-                });
-                myChart_perimeter.setOption({
-                    title: {
-                        text: "肿瘤周长变化",
-                        subtext: "Tumor Circumference Change",
-                        left: "center"
-                    },
-                    legend: {
-                        data: [""]
-                    },
-                    tooltip: {},
+const downTemplate = async () => {
+  try {
+    const data = await apiDownloadTemplate()
+    const url = window.URL.createObjectURL(new Blob([data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '����CTͼ��.zip')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('���سɹ�')
+    centerDialogVisible.value = false
+    activeStep.value = 1
+  } catch (e) {
+    ElMessage.error('����ʧ��')
+  }
+}
 
-                    grid: {
-                        //显示数据的图表位于当前canvas的坐标轴
-                        x: 50,
-                        y: 55,
-                        x2: 50,
-                        y2: 60,
-                        borderWidth: 1
-                    },
+const handleClose = (done) => {
+  ElMessageBox.confirm('ȷ�Ϲرգ�').then(() => done()).catch(() => {})
+}
 
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            dataZoom: {
-                                yAxisIndex: "none"
-                            },
-                            dataView: {readOnly: false},
-                            magicType: {type: ["line", "bar"]},
-                            restore: {},
-                            saveAsImage: {}
-                        }
-                    },
-                    xAxis: {
-                        type: "category",
-                        boundaryGap: false,
-                        data: ["1", "2", "3", "4", "5", "6", "7", "8"],
-                        name: "治疗时间（周）",
-                        nameLocation: "middle",
-                        nameTextStyle: {
-                            padding: 14,
-                            fontSize: 14
-                        }
-                    },
-                    yAxis: {
-                        type: "value",
-                        name: "肿瘤周长",
-                        nameTextStyle: {
-                            padding: 4,
-                            fontSize: 14
-                        },
-                        max: 400
-                    },
-                    series: [
-                        {
-                            name: "周长",
-                            type: "bar",
-                            data: []
-                        }
-                    ]
-                });
-            },
-            // 创建模板下载链接
-            downloads(data) {
-                if (!data) {
-                    return;
-                }
-                let url = window.URL.createObjectURL(new Blob([data]));
-                let link = document.createElement("a");
-                link.style.display = "none";
-                link.href = url;
-                link.setAttribute("download", `肿瘤CT图文件.zip`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-            },
-            welcome() {
-                axios({
-                    method: "get",
-                    url:
-                        "https://cso1-1254043908.cos.ap-beijing.myqcloud.com/ct/testfile.7z",
-                    responseType: "blob"
-                }).then(res => {
-                    this.downloads(res.data, res.headers.filename);
-                    if (res.status === 200) {
-                        ElMessage({
-                            message: "下载成功",
-                            type: "success"
-                        });
-                        this.centerDialogVisible = false;
-                        this.next();
-                    } else {
-                        ElMessage({
-                            showClose: true,
-                            message: "下载失败，请重试",
-                            type: "error"
-                        });
-                    }
-                });
-            },
-            notice1() {
-                ElNotification({
-                    title: "预测成功",
-                    message:
-                        "点击图片可以查看大图，图片下方会显示肿瘤区域的一些特征值来供医生参考，辅助诊断",
-                    duration: 0,
-                    type: "success"
-                });
-            }
-        },
-        mounted() {
-            this.drawChart();
-        }
-    };
+// ��������
+onMounted(() => {
+  initSocket()
+  searchPatient() // Ĭ�ϼ���
+})
+
+onUnmounted(() => {
+  if (socket) socket.disconnect()
+  stopProgress()
+})
+
+// ��¶�������
+defineExpose({
+  downTemplate,
+  handleFile
+})
 </script>
 
-<style>
-    .el-button {
-        padding: 12px 20px !important;
-    }
-
-    #hello p {
-        font-size: 15px !important;
-        /*line-height: 25px;*/
-    }
-
-    .n1 .el-step__description {
-        padding-right: 20%;
-        font-size: 14px;
-        line-height: 20px;
-        /* font-weight: 400; */
-    }
-</style>
-
 <style scoped>
-    * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-    }
+#Content {
+  width: 85%;
+  margin: 15px auto;
+  display: flex;
+  min-width: 1200px;
+  align-items: flex-start;
+}
 
-    .dialog_info {
-        margin: 20px auto;
-    }
+#aside {
+  width: 25%;
+  padding: 30px;
+  margin-right: 40px;
+  position: sticky;
+  top: 20px;
+}
 
-    .text {
-        font-size: 14px;
-    }
+#CT {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
-    .item {
-        margin-bottom: 18px;
-    }
-
-    .clearfix:before,
-    .clearfix:after {
-        display: table;
-        content: "";
-    }
-
-    .clearfix:after {
-        clear: both;
-    }
-
-    .box-card {
-        width: 680px;
-        height: 200px;
-        border-radius: 8px;
-        margin-top: -20px;
-    }
-
-    .divider {
-        width: 50%;
-    }
-
-    #CT {
-        display: flex;
-        height: 100%;
-        width: 70%;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin: 0 auto;
-        margin-right: 0px;
-        max-width: 1200px;
-        /* background-color: RGB(239, 249, 251); */
-        /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04); */
-    }
-
-    #CT_image_1 {
-        width: 90%;
-        height: 40%;
-        /* background-color: RGB(239, 249, 251); */
-        margin: 0px auto;
-        padding: 0px auto;
-        /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04); */
-        margin-right: 180px;
-        margin-bottom: 0px;
-        border-radius: 4px;
-    }
-
-    #CT_image {
-        margin-bottom: 60px;
-        margin-left: 30px;
-        margin-top: 5px;
-    }
-
-    .image_1 {
-        width: 275px;
-        height: 260px;
-        background: #ffffff;
-        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-    }
-
-    .img_info_1 {
-        height: 30px;
-        width: 275px;
-        text-align: center;
-        background-color: #21b3b9;
-        line-height: 30px;
-    }
-
-    .demo-image__preview1 {
-        width: 250px;
-        height: 290px;
-        margin: 20px 60px;
-        float: left;
-    }
-
-    .demo-image__preview2 {
-        width: 250px;
-        height: 290px;
-
-        margin: 20px 460px;
-        /* background-color: green; */
-    }
-
-    .error {
-        margin: 100px auto;
-        width: 50%;
-        padding: 10px;
-        text-align: center;
-    }
-
-    .block-sidebar {
-        position: fixed;
-        display: none;
-        left: 50%;
-        margin-left: 600px;
-        top: 350px;
-        width: 60px;
-        z-index: 99;
-    }
-
-    .block-sidebar .block-sidebar-item {
-        font-size: 50px;
-        color: lightblue;
-        text-align: center;
-        line-height: 50px;
-        margin-bottom: 20px;
-        cursor: pointer;
-        display: block;
-    }
-
-    div {
-        display: block;
-    }
-
-    .block-sidebar .block-sidebar-item:hover {
-        color: #187aab;
-    }
-
-    .download_bt {
-        padding: 10px 16px !important;
-    }
-
-    #upfile {
-        width: 104px;
-        height: 45px;
-        background-color: #187aab;
-        color: #fff;
-        text-align: center;
-        line-height: 45px;
-        border-radius: 3px;
-        box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.1), 0 2px 2px 0 rgba(0, 0, 0, 0.2);
-        color: #fff;
-        font-family: "Source Sans Pro", Verdana, sans-serif;
-        font-size: 0.875rem;
-    }
-
-    .file {
-        width: 200px;
-        height: 130px;
-        position: absolute;
-        left: -20px;
-        top: 0;
-        z-index: 1;
-        -moz-opacity: 0;
-        -ms-opacity: 0;
-        -webkit-opacity: 0;
-        opacity: 0; /*css属性&mdash;&mdash;opcity不透明度，取值0-1*/
-        filter: alpha(opacity=0);
-        cursor: pointer;
-    }
-
-    #upload {
-        position: relative;
-        margin: 0px 0px;
-    }
-
-    #download {
-        padding: 0px;
-        margin: 0px 0px;
-    }
-
-    .patient {
-        margin: 50px auto;
-        margin-bottom: 100px;
-        /* margin-right: 100px; */
-        background-color: #187aab;
-        border-radius: 5px;
-        box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.1), 0 2px 2px 0 rgba(0, 0, 0, 0.2);
-        color: #fff;
-        font-family: "Source Sans Pro", Verdana, sans-serif;
-        font-size: 0.875rem;
-        line-height: 1;
-        padding: 0.75rem 1.5rem;
-    }
-
-    #Content {
-        width: 85%;
-        /* height: 800px; */
-        background-color: #ffffff;
-        margin: 15px auto;
-        display: flex;
-        min-width: 1200px;
-        align-items: flex-start;
-        /* border: 1px solid #e4e7ed; */
-        /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04); */
-    }
-
-    #aside {
-        width: 25%;
-        background-color: #ffffff;
-        padding: 30px;
-        margin-right: 80px;
-        /* background-color: RGB(239, 249, 251); */
-        /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04); */
-        /* height: 800px; */
-        position: -webkit-sticky;
-        position: sticky;
-        top: 20px;
-        max-height: calc(100vh - 40px);
-        overflow-y: auto;
-    }
-    
-    /* 隐藏侧边栏滚动条但保留功能 */
-    #aside::-webkit-scrollbar {
-        width: 0 !important;
-    }
-
-    .divider {
-        background-color: #eaeaea !important;
-        height: 2px !important;
-        width: 100%;
-        margin-bottom: 50px;
-    }
-
-    .divider_1 {
-        background-color: #ffffff;
-        height: 2px !important;
-        width: 100%;
-        margin-bottom: 20px;
-        margin: 20px auto;
-    }
-
-    .steps {
-        font-family: "lucida grande", "lucida sans unicode", lucida, helvetica,
-        "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
-        color: #21b3b9;
-        text-align: center;
-        margin: 15px auto;
-        font-size: 20px;
-        font-weight: bold;
-        text-align: center;
-    }
-
-    .step_1 {
-        /*color: #303133 !important;*/
-        margin: 20px 26px;
-    }
-
-    #info_patient {
-        margin-top: 10px;
-        margin-right: 160px;
-    }
+#info_patient {
+  width: 100%;
+}
 </style>
-
-

@@ -5,17 +5,17 @@
         <div class="logo-container">
           <el-icon class="logo-icon" :size="40" color="#409EFF"><Monitor /></el-icon>
         </div>
-        <h1 class="system-title">è‚¿ç˜¤è¾…åŠ©è¯Šæ–­ç³»ç»Ÿ</h1>
+        <h1 class="system-title">Ö×Áö¸¨ÖúÕï¶ÏÏµÍ³</h1>
         <p class="system-subtitle">Tumor Aided Diagnosis System</p>
       </div>
       
       <el-card class="login-card" shadow="hover">
-        <h2 class="login-title">ç”¨æˆ·ç™»å½•</h2>
-        <el-form :model="loginForm" :rules="rules" ref="loginForm" size="large" class="login-form">
+        <h2 class="login-title">ÓÃ»§µÇÂ¼</h2>
+        <el-form :model="loginForm" :rules="rules" ref="loginFormRef" size="large" class="login-form">
           <el-form-item prop="username">
             <el-input 
               v-model="loginForm.username" 
-              placeholder="è¯·è¾“å…¥ç”¨æˆ·å"
+              placeholder="ÇëÊäÈëÓÃ»§Ãû"
               :prefix-icon="User">
             </el-input>
           </el-form-item>
@@ -23,7 +23,7 @@
             <el-input 
               type="password" 
               v-model="loginForm.password" 
-              placeholder="è¯·è¾“å…¥å¯†ç " 
+              placeholder="ÇëÊäÈëÃÜÂë" 
               :prefix-icon="Lock"
               show-password
               @keyup.enter="handleLogin">
@@ -31,135 +31,120 @@
           </el-form-item>
           
           <div class="form-options">
-            <el-checkbox v-model="rememberMe">è®°ä½æˆ‘</el-checkbox>
-            <el-link type="primary" :underline="false">å¿˜è®°å¯†ç ?</el-link>
+            <el-checkbox v-model="rememberMe">¼Ç×¡ÎÒ</el-checkbox>
+            <el-link type="primary" :underline="false">Íü¼ÇÃÜÂë?</el-link>
           </div>
           
           <el-form-item>
             <el-button type="primary" @click="handleLogin" :loading="loading" class="login-button" round>
-              {{ loading ? 'ç™»å½•ä¸­...' : 'ç«‹å³ç™»å½•' }}
+              {{ loading ? 'µÇÂ¼ÖĞ...' : 'Á¢¼´µÇÂ¼' }}
             </el-button>
           </el-form-item>
         </el-form>
         
         <div class="login-footer">
           <div class="account-info">
-            <p><span>ç®¡ç†å‘˜:</span> admin / 123456</p>
-            <p><span>åŒ»ç”Ÿ:</span> doctor / doctor123</p>
+            <p><span>¹ÜÀíÔ±:</span> admin / 123456</p>
+            <p><span>Ò½Éú:</span> doctor / doctor123</p>
           </div>
         </div>
       </el-card>
     </div>
     
     <div class="copyright">
-      <p>Â© 2023 è‚¿ç˜¤è¾…åŠ©è¯Šæ–­ç³»ç»Ÿ | CTAI System</p>
+      <p> 2023 Ö×Áö¸¨ÖúÕï¶ÏÏµÍ³ | CTAI System</p>
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { User, Lock, Monitor } from '@element-plus/icons-vue'
+import { login, checkAuth } from '../api/auth'
 
-export default {
-  name: 'AppLogin',
-  data() {
-    return {
-      User,
-      Lock,
-      loginForm: {
-        username: '',
-        password: ''
-      },
-      loading: false,
-      rememberMe: false,
-      rules: {
-        username: [
-          { required: true, message: 'è¯·è¾“å…¥ç”¨æˆ·å', trigger: 'blur' },
-          { min: 2, max: 20, message: 'ç”¨æˆ·åé•¿åº¦åœ¨ 2 åˆ° 20 ä¸ªå­—ç¬¦', trigger: 'blur' }
-        ],
-        password: [
-          { required: true, message: 'è¯·è¾“å…¥å¯†ç ', trigger: 'blur' },
-          { min: 4, max: 30, message: 'å¯†ç é•¿åº¦åœ¨ 4 åˆ° 30 ä¸ªå­—ç¬¦', trigger: 'blur' }
-        ]
+const router = useRouter()
+const loginFormRef = ref(null)
+const loading = ref(false)
+const rememberMe = ref(false)
+
+const loginForm = reactive({
+  username: '',
+  password: ''
+})
+
+const rules = {
+  username: [
+    { required: true, message: 'ÇëÊäÈëÓÃ»§Ãû', trigger: 'blur' },
+    { min: 2, max: 20, message: 'ÓÃ»§Ãû³¤¶ÈÔÚ 2 µ½ 20 ¸ö×Ö·û', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: 'ÇëÊäÈëÃÜÂë', trigger: 'blur' },
+    { min: 4, max: 30, message: 'ÃÜÂë³¤¶ÈÔÚ 4 µ½ 30 ¸ö×Ö·û', trigger: 'blur' }
+  ]
+}
+
+const checkLoginStatus = async () => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    try {
+      const res = await checkAuth()
+      if (res.status === 1) {
+        router.push('/home')
       }
-    }
-  },
-  components: {
-    Monitor
-  },
-  created() {
-    // æ£€æŸ¥æ˜¯å¦å·²ç™»å½•
-    this.checkLoginStatus();
-    // æ¢å¤è®°ä½çš„ç”¨æˆ·å
-    const savedUsername = localStorage.getItem('rememberedUsername');
-    if (savedUsername) {
-      this.loginForm.username = savedUsername;
-      this.rememberMe = true;
-    }
-  },
-  methods: {
-    async checkLoginStatus() {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const response = await this.$http.get('http://127.0.0.1:5003/api/check-auth', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (response.data.status === 1) {
-            this.$router.push('/home');
-          }
-        } catch (error) {
-          // tokenæ— æ•ˆï¼Œæ¸…é™¤
-          localStorage.removeItem('token');
-          localStorage.removeItem('userInfo');
-        }
-      }
-    },
-    
-    async handleLogin() {
-      if (!this.$refs.loginForm) return;
-      
-      await this.$refs.loginForm.validate(async (valid) => {
-        if (valid) {
-          this.loading = true;
-          try {
-            const response = await this.$http.post('http://127.0.0.1:5003/api/login', {
-              username: this.loginForm.username,
-              password: this.loginForm.password
-            });
-            
-            if (response.data.status === 1) {
-              // ä¿å­˜ç™»å½•ä¿¡æ¯
-              const { token, user } = response.data;
-              const { username, name, role } = user;
-              localStorage.setItem('token', token);
-              localStorage.setItem('userInfo', JSON.stringify({ username, name, role }));
-              
-              // è®°ä½ç”¨æˆ·å
-              if (this.rememberMe) {
-                localStorage.setItem('rememberedUsername', username);
-              } else {
-                localStorage.removeItem('rememberedUsername');
-              }
-              
-              this.$message.success(`æ¬¢è¿å›æ¥ï¼Œ${name}ï¼`);
-              this.$router.push('/home');
-            } else {
-              this.$message.error(response.data.error || 'ç™»å½•å¤±è´¥');
-            }
-          } catch (error) {
-            console.error('ç™»å½•è¯·æ±‚å¤±è´¥:', error);
-            this.$message.error('ç½‘ç»œé”™è¯¯ï¼Œè¯·æ£€æŸ¥åç«¯æœåŠ¡æ˜¯å¦å¯åŠ¨');
-          } finally {
-            this.loading = false;
-          }
-        } else {
-          return false;
-        }
-      });
+    } catch (error) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
     }
   }
 }
+
+const handleLogin = async () => {
+  if (!loginFormRef.value) return
+  
+  await loginFormRef.value.validate(async (valid) => {
+    if (valid) {
+      loading.value = true
+      try {
+        const res = await login({
+          username: loginForm.username,
+          password: loginForm.password
+        })
+        
+        if (res.status === 1) {
+          const { token, user } = res
+          localStorage.setItem('token', token)
+          localStorage.setItem('userInfo', JSON.stringify(user))
+          
+          if (rememberMe.value) {
+            localStorage.setItem('rememberedUsername', loginForm.username)
+          } else {
+            localStorage.removeItem('rememberedUsername')
+          }
+          
+          ElMessage.success(`»¶Ó­»ØÀ´£¬${user.name}£¡`)
+          router.push('/home')
+        } else {
+          ElMessage.error(res.error || 'µÇÂ¼Ê§°Ü')
+        }
+      } catch (error) {
+        console.error('µÇÂ¼ÇëÇóÊ§°Ü:', error)
+      } finally {
+        loading.value = false
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  checkLoginStatus()
+  const savedUsername = localStorage.getItem('rememberedUsername')
+  if (savedUsername) {
+    loginForm.username = savedUsername
+    rememberMe.value = true
+  }
+})
 </script>
 
 <style scoped>
@@ -183,7 +168,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4); /* é®ç½©å±‚ */
+  background: rgba(0, 0, 0, 0.4);
   z-index: 0;
 }
 
@@ -309,7 +294,6 @@ export default {
   z-index: 1;
 }
 
-/* å“åº”å¼è°ƒæ•´ */
 @media (max-width: 480px) {
   .login-content {
     padding: 15px;
