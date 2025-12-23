@@ -1,194 +1,276 @@
 <template>
-    <div id="Header">
-        <div class="header-container">
-            <!-- 左侧标题 -->
-            <div class="logo-title">
-                <h1>{{msg}}</h1>
-            </div>
-
-            <!-- 中间导航栏 -->
-            <div class="nav-menu">
-                <el-menu 
-                    :default-active="activeIndex" 
-                    class="el-menu-demo" 
-                    mode="horizontal" 
-                    :ellipsis="false"
-                    @select="handleSelect"
-                    style="border-bottom: none; background-color: transparent;"
-                >
-                    <el-menu-item index="1">首页</el-menu-item>
-                    <el-menu-item index="2">历史记录</el-menu-item>
-                    <el-menu-item index="3">数据分析</el-menu-item>
-                    <el-menu-item index="4">系统设置</el-menu-item>
-                </el-menu>
-                
-                <!-- 操作按钮 -->
-                <div class="action-buttons" style="margin-left: 20px; display: flex; align-items: center;">
-                    <el-button type="primary" plain size="small" @click="$emit('download-template')">
-                        <el-icon style="margin-right: 5px"><Download /></el-icon>下载测试数据
-                    </el-button>
-                    <el-button type="primary" size="small" @click="triggerUpload" style="margin-left: 10px;">
-                        <el-icon style="margin-right: 5px"><Upload /></el-icon>上传CT图像
-                    </el-button>
-                    <input 
-                        type="file" 
-                        ref="fileInput" 
-                        style="display: none" 
-                        accept=".dcm"
-                        @change="handleFileChange"
-                    >
-                </div>
-            </div>
-            
-            <!-- 右侧用户信息区域 -->
-            <div class="user-info">
-                <el-dropdown @command="handleCommand">
-                    <span class="el-dropdown-link">
-                        <el-avatar :size="32" :icon="UserFilled"></el-avatar>
-                        <span class="username">{{ userInfo.name || '用户' }}</span>
-                        <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                    </span>
-                    <template #dropdown>
-                        <el-dropdown-menu>
-                            <el-dropdown-item :icon="User" disabled>
-                                {{ userInfo.role === 'admin' ? '管理员' : '医生' }}
-                            </el-dropdown-item>
-                            <el-dropdown-item :icon="Setting" divided>个人设置</el-dropdown-item>
-                            <el-dropdown-item :icon="SwitchButton" command="logout">退出登录</el-dropdown-item>
-                        </el-dropdown-menu>
-                    </template>
-                </el-dropdown>
-            </div>
+  <header class="app-header">
+    <div class="header-content">
+      <!-- Logo & Title -->
+      <div class="brand">
+        <div class="logo-box">
+          <el-icon :size="24" color="#fff"><Monitor /></el-icon>
         </div>
+        <h1 class="title">{{ msg }}</h1>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="nav-section">
+        <el-menu
+          :default-active="activeIndex"
+          mode="horizontal"
+          class="custom-menu"
+          @select="handleSelect"
+        >
+          <el-menu-item index="1">工作台</el-menu-item>
+          <el-menu-item index="2">历史记录</el-menu-item>
+          <el-menu-item index="3">统计分析</el-menu-item>
+        </el-menu>
+      </nav>
+
+      <!-- Actions & User -->
+      <div class="actions">
+        <div class="header-btns">
+          <el-button type="primary" plain size="default" @click="$emit('download-template')">
+            <el-icon><Download /></el-icon>
+            <span>下载测试数据</span>
+          </el-button>
+          <el-button type="primary" size="default" @click="triggerUpload">
+            <el-icon><Upload /></el-icon>
+            <span>上传CT图像</span>
+          </el-button>
+        </div>
+
+        <input
+          type="file"
+          ref="fileInput"
+          style="display: none"
+          accept=".dcm"
+          @change="handleFileChange"
+        />
+
+        <div class="user-profile">
+          <el-dropdown @command="handleCommand">
+            <div class="user-info-wrapper">
+              <el-avatar :size="36" :icon="UserFilled" class="user-avatar" />
+              <div class="user-details">
+                <span class="username">{{ userInfo.name || '用户' }}</span>
+                <span class="role">{{ userInfo.role === 'admin' ? '管理员' : '医生' }}</span>
+              </div>
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item :icon="User">个人中心</el-dropdown-item>
+                <el-dropdown-item :icon="Setting">系统设置</el-dropdown-item>
+                <el-dropdown-item :icon="SwitchButton" command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
     </div>
+  </header>
 </template>
-<script>
-    import { UserFilled, ArrowDown, User, Setting, SwitchButton, Download, Upload } from '@element-plus/icons-vue'
-    import { logout } from '../api/auth'
 
-    export default {
-        name: "AppHeader",
-        emits: ['download-template', 'upload-file'],
-        data() {
-            return {
-                msg: "肿瘤辅助诊断系统",
-                activeIndex: "1",
-                userInfo: {},
-                UserFilled,
-                User,
-                Setting,
-                SwitchButton,
-                Download,
-                Upload
-            };
-        },
-        components: {
-            ArrowDown,
-            Download,
-            Upload
-        },
-        created() {
-            // 获取用户信息
-            const userInfoStr = localStorage.getItem('userInfo');
-            if (userInfoStr) {
-                try {
-                    this.userInfo = JSON.parse(userInfoStr);
-                } catch (e) {
-                    console.error('解析用户信息失败', e);
-                }
-            }
-        },
-        methods: {
-            handleSelect(key, keyPath) {
-                console.log(key, keyPath);
-            },
-            handleCommand(command) {
-                if (command === 'logout') {
-                    this.handleLogout();
-                }
-            },
-            async handleLogout() {
-                try {
-                    await logout();
-                } catch (e) {
-                    console.error('登出请求失败', e);
-                }
-                
-                // 清除本地存储
-                localStorage.removeItem('token');
-                localStorage.removeItem('userInfo');
-                
-                this.$message.success('已退出登录');
-                this.$router.push('/login');
-            },
-            triggerUpload() {
-                this.$refs.fileInput.click();
-            },
-            handleFileChange(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    this.$emit('upload-file', file);
-                    // 清空input，允许重复上传同名文件
-                    e.target.value = '';
-                }
-            }
-        }
-    };
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import {
+  UserFilled,
+  ArrowDown,
+  User,
+  Setting,
+  SwitchButton,
+  Download,
+  Upload,
+  Monitor
+} from '@element-plus/icons-vue'
+import { logout } from '../api/auth'
+
+defineProps({
+  msg: {
+    type: String,
+    default: '肿瘤辅助诊断系统'
+  }
+})
+
+const emit = defineEmits(['download-template', 'upload-file'])
+
+const router = useRouter()
+const activeIndex = ref('1')
+const userInfo = ref({})
+const fileInput = ref(null)
+
+const handleSelect = (key) => {
+  activeIndex.value = key
+}
+
+const triggerUpload = () => {
+  fileInput.value.click()
+}
+
+const handleFileChange = (e) => {
+  const file = e.target.files[0]
+  if (file) {
+    emit('upload-file', file)
+    e.target.value = ''
+  }
+}
+
+const handleCommand = (command) => {
+  if (command === 'logout') {
+    handleLogout()
+  }
+}
+
+const handleLogout = async () => {
+  try {
+    await logout()
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+    ElMessage.success('已退出登录')
+    router.push('/login')
+  } catch (e) {
+    console.error('登出失败', e)
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+    router.push('/login')
+  }
+}
+
+onMounted(() => {
+  const userInfoStr = localStorage.getItem('userInfo')
+  if (userInfoStr) {
+    try {
+      userInfo.value = JSON.parse(userInfoStr)
+    } catch (e) {
+      console.error('解析用户信息失败', e)
+    }
+  }
+})
 </script>
+
 <style scoped>
-    #Header {
-        width: 100%;
-        background-color: #fff;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        padding: 0 20px;
-        box-sizing: border-box;
-    }
+.app-header {
+  height: 70px;
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+}
 
-    .header-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        height: 60px;
-        max-width: 1400px;
-        margin: 0 auto;
-    }
+.header-content {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
-    .logo-title h1 {
-        margin: 0;
-        color: #21b3b9;
-        font-size: 24px;
-        letter-spacing: 2px;
-        white-space: nowrap;
-    }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-    .nav-menu {
-        flex: 1;
-        margin: 0 40px;
-        display: flex;
-        justify-content: flex-end; /* 导航栏靠右显示 */
-    }
+.logo-box {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(64, 158, 255, 0.3);
+}
 
-    .el-menu-demo {
-        border-bottom: none !important;
-    }
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #2c3e50;
+  letter-spacing: 0.5px;
+}
 
-    .user-info {
-        display: flex;
-        align-items: center;
-    }
-    
-    .el-dropdown-link {
-        cursor: pointer;
-        color: #409EFF;
-        display: flex;
-        align-items: center;
-    }
-    
-    .username {
-        margin-left: 8px;
-        font-size: 14px;
-        color: #606266;
-    }
+.nav-section {
+  flex: 1;
+  margin: 0 50px;
+}
+
+.custom-menu {
+  border-bottom: none !important;
+  height: 70px;
+  background-color: transparent !important;
+}
+
+.custom-menu :deep(.el-menu-item) {
+  height: 70px;
+  line-height: 70px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.header-btns {
+  display: flex;
+  gap: 12px;
+}
+
+.header-btns :deep(.el-button) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+.user-profile {
+  padding-left: 24px;
+  border-left: 1px solid #ebeef5;
+}
+
+.user-info-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.user-info-wrapper:hover {
+  background-color: #f5f7fa;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.username {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 1.2;
+}
+
+.role {
+  font-size: 12px;
+  color: #909399;
+}
+
+.user-avatar {
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
 </style>
 
 

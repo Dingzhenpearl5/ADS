@@ -1,68 +1,115 @@
 <template>
   <div class="content-container">
-    <el-row :gutter="20">
-      <!-- 左侧：患者信息与操作 -->
-      <el-col :span="6">
-        <PatientInfo 
-          :patient="displayPatient" 
-          :loading="loading"
-          @search="fetchPatientData"
-        />
-        <div style="margin-top: 20px; text-align: center;">
-          <el-button type="success" size="large" @click="handleStartDiagnosis" :loading="loading" round>
-            开始辅助诊断
-          </el-button>
+    <el-row :gutter="24">
+      <!-- Left Column: Patient Info & Actions -->
+      <el-col :lg="6" :md="8" :sm="24">
+        <div class="side-panel">
+          <PatientInfo 
+            :patient="displayPatient" 
+            :loading="loading"
+            @search="fetchPatientData"
+          />
+          
+          <div class="action-card custom-card">
+            <div class="section-title">
+              <el-icon><Operation /></el-icon>
+              <span>诊断操作</span>
+            </div>
+            <div class="action-btns">
+              <el-button 
+                type="primary" 
+                size="large" 
+                class="start-btn"
+                @click="handleStartDiagnosis" 
+                :loading="loading"
+                :disabled="!url1"
+              >
+                <el-icon><VideoPlay /></el-icon>
+                <span>开始 AI 辅助诊断</span>
+              </el-button>
+              <p class="hint-text" v-if="!url1">请先上传 CT 影像文件</p>
+            </div>
+          </div>
         </div>
       </el-col>
 
-      <!-- 中间：图像工作区 -->
-      <el-col :span="12">
+      <!-- Middle Column: Image Workspace -->
+      <el-col :lg="12" :md="16" :sm="24">
         <ImageWorkspace 
           :url1="url1"
           :url2="url2"
           :src-list="srcList"
           :src-list1="srcList1"
           :loading="loading"
+          :show-upload-button="!url1"
+          :wait-return="progressStatus"
+          @upload="handleFile"
         />
       </el-col>
 
-      <!-- 右侧：特征分析 -->
-      <el-col :span="6">
-        <FeatureAnalysis :feature-list="featureList" />
+      <!-- Right Column: Feature Analysis -->
+      <el-col :lg="6" :md="24" :sm="24">
+        <FeatureAnalysis 
+          :feature-list="featureList" 
+          :loading="loading"
+          :area-data="areaData"
+          :perimeter-data="perimeterData"
+          :show-upload-button="!url1"
+          @upload="handleFile"
+        />
       </el-col>
     </el-row>
 
-    <!-- 诊断进度弹窗 -->
+    <!-- Diagnosis Progress Dialog -->
     <el-dialog 
       v-model="dialogTableVisible" 
-      title="诊断进度" 
+      title="AI 诊断分析中" 
       :close-on-click-modal="false"
       :show-close="false"
-      width="30%"
+      width="400px"
       center
+      class="custom-dialog"
     >
-      <div class="progress-container">
-        <el-progress type="dashboard" :percentage="percentage" :color="colors" />
-        <p class="progress-text">{{ progressStatus }}</p>
+      <div class="progress-content">
+        <el-progress 
+          type="dashboard" 
+          :percentage="percentage" 
+          :color="progressColors"
+          :stroke-width="10"
+          :width="180"
+        >
+          <template #default="{ percentage }">
+            <div class="percentage-value">{{ percentage }}%</div>
+            <div class="percentage-label">完成度</div>
+          </template>
+        </el-progress>
+        <div class="status-info">
+          <el-icon class="is-loading" v-if="percentage < 100"><Loading /></el-icon>
+          <el-icon color="#67c23a" v-else><Check /></el-icon>
+          <span>{{ progressStatus }}</span>
+        </div>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, defineExpose } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import { io } from 'socket.io-client'
+import { Operation, VideoPlay, Loading, Check } from '@element-plus/icons-vue'
+
 import PatientInfo from './PatientInfo.vue'
 import ImageWorkspace from './ImageWorkspace.vue'
 import FeatureAnalysis from './FeatureAnalysis.vue'
+
 import { getPatientInfo } from '../api/patient'
 import { startTask, downloadTemplate, uploadDcm } from '../api/task'
 
 const route = useRoute()
 
-// 状态变量
+// State
 const loading = ref(false)
 const dialogTableVisible = ref(false)
 const percentage = ref(0)
@@ -72,6 +119,8 @@ const url2 = ref('')
 const srcList = ref([])
 const srcList1 = ref([])
 const featureList = ref([])
+const areaData = ref(0)
+const perimeterData = ref(0)
 
 const patient = ref({
   id: '',
@@ -82,183 +131,7 @@ const patient = ref({
   part: ''
 })
 
-// 映射显示用的患者信息
-const displayPatient = computed(() => ({
-  '姓名': patient.value.name,
-  '性别': patient.value.gender,
-  '年龄': patient.value.age,
-  '电话': patient.value.phone,
-  '部位': patient.value.part
-}))
-
-let socket = null
-let progressTimer = null
-
-// 初始化 Socket
-const initSocket = () => {
-  const socketUrl = process.env.VUE_APP_SOCKET_URL || 'http://127.0.0.1:5003'
-  console.log('[Socket] Connecting to:', socketUrl)
-  socket = io(socketUrl)
-  
-  socket.on('connect', () => console.log('[Socket] Connected'))
-  
-  socket.on('task_completed', (data) => {
-    console.log('[Socket] Task completed:', data)
-    updateResult(data)
-  })
-  
-  socket.on('task_failed', (data) => {
-    console.error('[Socket] Task failed:', data)
-    handleTaskFailed(data.error)
-  })
-}
-
-// 更新预测结果
-const updateResult = (data) => {
-  stopProgress()
-  percentage.value = 100
-  url1.value = data.image_url
-  srcList.value = [data.image_url]
-  url2.value = data.draw_url
-  srcList1.value = [data.draw_url]
-  
-  loading.value = false
-  dialogTableVisible.value = false
-  
-  // 处理特征数据
-  const info = data.image_info
-  const list = []
-  if (info) {
-    Object.keys(info).forEach(key => {
-      list.push({
-        name: key,
-        area: info[key].area,
-        perimeter: info[key].perimeter
-      })
-    })
-  }
-  featureList.value = list
-  
-  ElMessage.success('诊断完成')
-}
-
-const handleTaskFailed = (error) => {
-  stopProgress()
-  loading.value = false
-  dialogTableVisible.value = false
-  ElMessage.error('诊断失败: ' + error)
-}
-
-// 进度条控制
-const startProgress = () => {
-  percentage.value = 0
-  dialogTableVisible.value = true
-  progressStatus.value = '正在分析图像...'
-  progressTimer = setInterval(() => {
-    if (percentage.value < 95) {
-      percentage.value += Math.floor(Math.random() * 5)
-      if (percentage.value > 95) percentage.value = 95
-    }
-  }, 500)
-}
-
-const stopProgress = () => {
-  if (progressTimer) {
-    clearInterval(progressTimer)
-    progressTimer = null
-  }
-}
-
-// 开始诊断
-const handleStartDiagnosis = async () => {
-  if (!patient.value.id) {
-    ElMessage.warning('未找到患者信息')
-    return
-  }
-  
-  loading.value = true
-  startProgress()
-  
-  try {
-    console.log('Starting task for patient:', patient.value.id)
-    await startTask(patient.value.id)
-  } catch (error) {
-    handleTaskFailed(error.message)
-  }
-}
-
-// 获取患者数据
-const fetchPatientData = async (id) => {
-  if (!id) return
-  try {
-    console.log('Fetching patient data for:', id)
-    const res = await getPatientInfo(id)
-    if (res.status === 1) {
-      const d = res.data
-      if (d) {
-        patient.value = {
-          id: d.ID || d.id || id,
-          name: d['姓名'] || d.name || '',
-          gender: d['性别'] || d.gender || '',
-          age: d['年龄'] || d.age || '',
-          phone: d['电话'] || d.phone || '',
-          part: d['部位'] || d.part || ''
-        }
-      }
-    } else {
-      ElMessage.error(res.error || '获取患者信息失败')
-    }
-  } catch (error) {
-    console.error('Fetch patient error:', error)
-    ElMessage.error('获取患者信息失败')
-  }
-}
-
-// 下载模板
-const downTemplate = async () => {
-  try {
-    const res = await downloadTemplate()
-    const url = window.URL.createObjectURL(new Blob([res]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'template.dcm')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  } catch (error) {
-    ElMessage.error('下载失败')
-  }
-}
-
-// 处理文件上传
-const handleFile = async (file) => {
-  const formData = new FormData()
-  formData.append('file', file)
-  loading.value = true
-  try {
-    const res = await uploadDcm(formData)
-    if (res.status === 1) {
-      ElMessage.success('上传成功')
-      if (res.patient_id) {
-        fetchPatientData(res.patient_id)
-      }
-    } else {
-      ElMessage.error(res.error || '上传失败')
-    }
-  } catch (error) {
-    ElMessage.error('上传请求失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 暴露方法给父组件
-defineExpose({
-  downTemplate,
-  handleFile
-})
-
-const colors = [
+const progressColors = [
   { color: '#f56c6c', percentage: 20 },
   { color: '#e6a23c', percentage: 40 },
   { color: '#5cb87a', percentage: 60 },
@@ -266,37 +139,228 @@ const colors = [
   { color: '#6f7ad3', percentage: 100 },
 ]
 
-onMounted(() => {
-  const id = route.query.id
-  if (id) {
-    fetchPatientData(id)
+const displayPatient = computed(() => {
+  if (!patient.value) return {}
+  return {
+    '姓名': patient.value.name || '未填写',
+    '性别': patient.value.gender || '未填写',
+    '年龄': patient.value.age || '未填写',
+    '电话': patient.value.phone || '未填写',
+    '部位': patient.value.part || '未填写'
   }
+})
+
+let socket = null
+let progressTimer = null
+
+// Socket Initialization
+const initSocket = () => {
+  const socketUrl = process.env.VUE_APP_SOCKET_URL || 'http://127.0.0.1:5003'
+  socket = io(socketUrl)
+
+  socket.on('connect', () => {
+    console.log('[Socket] Connected')
+  })
+
+  socket.on('progress', (data) => {
+    percentage.value = data.percentage
+    progressStatus.value = data.message
+    
+    if (data.percentage === 100) {
+      setTimeout(() => {
+        dialogTableVisible.value = false
+        ElNotification({
+          title: '诊断完成',
+          message: 'AI 辅助诊断已成功完成，请查看结果。',
+          type: 'success',
+        })
+      }, 1000)
+    }
+  })
+
+  socket.on('result', (data) => {
+    url2.value = data.url2
+    srcList1.value = [data.url2]
+    featureList.value = data.feature_list
+    areaData.value = data.area
+    perimeterData.value = data.perimeter
+    loading.value = false
+  })
+
+  socket.on('error', (err) => {
+    ElMessage.error('诊断过程出错: ' + err)
+    loading.value = false
+    dialogTableVisible.value = false
+  })
+}
+
+// Methods
+const fetchPatientData = async (id) => {
+  if (!id) return
+  loading.value = true
+  try {
+    const res = await getPatientInfo(id)
+    if (res.status === 1 && res.data) {
+      const d = res.data
+      patient.value = {
+        id: d['ID'] || '',
+        name: d['姓名'] || '',
+        gender: d['性别'] || '',
+        age: d['年龄'] || '',
+        phone: d['电话'] || '',
+        part: d['部位'] || ''
+      }
+      ElMessage.success('患者信息获取成功')
+    } else {
+      ElMessage.warning(res.error || '未找到该患者信息')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取患者信息失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleFile = async (file) => {
+  loading.value = true
+  try {
+    const res = await uploadDcm(file)
+    url1.value = res.data.url1
+    srcList.value = [res.data.url1]
+    url2.value = ''
+    srcList1.value = []
+    featureList.value = []
+    ElMessage.success('影像上传成功')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('上传失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleStartDiagnosis = async () => {
+  if (!url1.value) {
+    return ElMessage.warning('请先上传 CT 影像')
+  }
+  
+  loading.value = true
+  dialogTableVisible.value = true
+  percentage.value = 0
+  progressStatus.value = '正在初始化诊断引擎...'
+
+  try {
+    await startTask({ imageUrl: url1.value })
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('启动诊断任务失败')
+    loading.value = false
+    dialogTableVisible.value = false
+  }
+}
+
+const downTemplate = async () => {
+  try {
+    await downloadTemplate()
+    ElMessage.success('测试数据下载开始')
+  } catch (e) {
+    ElMessage.error('下载失败')
+  }
+}
+
+// Lifecycle
+onMounted(() => {
   initSocket()
+  const id = route.query.id || '10007'
+  fetchPatientData(id)
 })
 
 onUnmounted(() => {
   if (socket) socket.disconnect()
-  stopProgress()
+  if (progressTimer) clearInterval(progressTimer)
+})
+
+// Expose methods for Home.vue
+defineExpose({
+  downTemplate,
+  handleFile
 })
 </script>
 
 <style scoped>
 .content-container {
-  padding: 20px;
-  background-color: #f5f7fa;
-  min-height: calc(100vh - 120px);
+  padding: 10px 0;
 }
 
-.progress-container {
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.action-card {
+  padding: 20px;
+}
+
+.action-btns {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.start-btn {
+  width: 100%;
+  height: 50px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #909399;
+  margin: 0;
+}
+
+.progress-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px 0;
 }
 
-.progress-text {
-  margin-top: 20px;
-  font-size: 16px;
+.percentage-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.percentage-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.status-info {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
   color: #606266;
+}
+
+:deep(.custom-dialog) {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+:deep(.custom-dialog .el-dialog__header) {
+  margin-right: 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f1f5f9;
 }
 </style>

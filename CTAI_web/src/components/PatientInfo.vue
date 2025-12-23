@@ -1,33 +1,38 @@
 <template>
   <div class="patient-info">
-    <el-card class="box-card" style="width:250px;height:auto">
-      <template #header>
-        <div class="clearfix">
-          <span>病人信息</span>
-        </div>
-      </template>
+    <div class="custom-card">
+      <div class="section-title">
+        <el-icon><User /></el-icon>
+        <span>患者信息</span>
+      </div>
       
-      <div style="margin-bottom: 15px; display: flex;">
+      <div class="search-box">
         <el-input 
           v-model="searchId" 
-          placeholder="输入ID搜索" 
-          size="small" 
-          style="margin-right: 5px;"
+          placeholder="输入患者ID搜索" 
           @keyup.enter="handleSearch"
-        ></el-input>
-        <el-button type="primary" :icon="Search" circle size="small" @click="handleSearch"></el-button>
+          class="custom-input"
+        >
+          <template #append>
+            <el-button :icon="Search" @click="handleSearch" />
+          </template>
+        </el-input>
       </div>
 
-      <div v-for="(value, name) in patient" :key="name" class="text item">
-        <h3 style="font-weight:normal;">{{ name }}: {{ value }}</h3>
+      <div class="info-list">
+        <div v-for="(value, name) in patient" :key="name" class="info-item">
+          <span class="label">{{ name }}:</span>
+          <span class="value">{{ value }}</span>
+        </div>
+        <el-empty v-if="!Object.keys(patient).length" description="暂无患者数据" :image-size="60" />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { Search, User } from '@element-plus/icons-vue'
 
 defineProps({
   patient: {
@@ -40,15 +45,64 @@ const emit = defineEmits(['search'])
 const searchId = ref('')
 
 const handleSearch = () => {
+  if (!searchId.value.trim()) return
   emit('search', searchId.value)
 }
 </script>
 
 <style scoped>
-.text {
-  font-size: 14px;
+.patient-info {
+  height: 100%;
 }
-.item {
-  margin-bottom: 10px;
+
+.search-box {
+  margin-bottom: 20px;
+}
+
+.custom-input :deep(.el-input__wrapper) {
+  border-radius: 8px 0 0 8px;
+}
+
+.custom-input :deep(.el-input-group__append) {
+  border-radius: 0 8px 8px 0;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+}
+
+.custom-input :deep(.el-input-group__append .el-button) {
+  color: white;
+  margin: -5px -20px;
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.info-item:hover {
+  background-color: #f1f5f9;
+  transform: translateX(4px);
+}
+
+.label {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.value {
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 14px;
 }
 </style>

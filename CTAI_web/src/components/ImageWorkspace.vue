@@ -1,67 +1,72 @@
 <template>
   <div class="image-workspace">
-    <el-card
-      class="box-card"
-      style="border-radius: 8px; width: 800px; height: 360px; margin-bottom: -30px;"
-    >
-      <div class="demo-image__preview1">
-        <div v-loading="loading" element-loading-text="上传图片中">
-          <el-image
-            :src="url1"
-            class="image_1"
-            :preview-src-list="srcList"
-            style="border-radius: 3px 3px 0 0"
-          >
-            <template #error>
-              <div class="error">
-                <el-button
-                  v-show="showUploadButton"
-                  type="primary"
-                  :icon="Upload"
-                  class="download_bt"
-                  @click="triggerUpload"
-                >
-                  上传dcm文件
-                  <input
-                    ref="fileInput"
-                    style="display: none"
-                    type="file"
-                    @change="handleFileChange"
-                  >
-                </el-button>
-              </div>
-            </template>
-          </el-image>
+    <div class="custom-card">
+      <div class="section-title">
+        <el-icon><Picture /></el-icon>
+        <span>影像工作区</span>
+      </div>
+
+      <div class="image-container">
+        <!-- Original Image -->
+        <div class="image-box">
+          <div class="image-wrapper" v-loading="loading" element-loading-text="上传中...">
+            <el-image
+              :src="url1"
+              :preview-src-list="srcList"
+              fit="contain"
+              class="main-image"
+            >
+              <template #error>
+                <div class="image-placeholder">
+                  <el-icon :size="48" color="#dcdfe6"><PictureFilled /></el-icon>
+                  <p v-if="!loading">等待上传图像</p>
+                </div>
+              </template>
+            </el-image>
+            <div class="image-label">原始 CT 影像</div>
+          </div>
         </div>
-        <div class="img_info_1" style="border-radius:0 0 5px 5px;">
-          <span style="color:white;letter-spacing:6px;">原CT图像</span>
+
+        <!-- Processed Image -->
+        <div class="image-box">
+          <div class="image-wrapper" v-loading="loading" element-loading-text="AI 诊断中...">
+            <el-image
+              :src="url2"
+              :preview-src-list="srcList1"
+              fit="contain"
+              class="main-image"
+            >
+              <template #error>
+                <div class="image-placeholder">
+                  <el-icon :size="48" color="#dcdfe6"><MagicStick /></el-icon>
+                  <p>{{ waitReturn || '等待诊断结果' }}</p>
+                </div>
+              </template>
+            </el-image>
+            <div class="image-label diagnostic">AI 辅助诊断结果</div>
+          </div>
         </div>
       </div>
 
-      <div class="demo-image__preview2">
-        <div v-loading="loading" element-loading-text="处理中,请耐心等待">
-          <el-image
-            :src="url2"
-            class="image_1"
-            :preview-src-list="srcList1"
-            style="border-radius: 3px 3px 0 0;"
-          >
-            <template #error>
-              <div class="error">{{ waitReturn }}</div>
-            </template>
-          </el-image>
-        </div>
-        <div class="img_info_1" style="border-radius: 0 0 5px 5px;">
-          <span style="color:white;letter-spacing:4px;">标出肿瘤的CT图像</span>
-        </div>
+      <div v-if="showUploadButton" class="upload-overlay">
+        <el-button type="primary" size="large" :icon="Upload" @click="triggerUpload">
+          上传 DICOM 文件开始诊断
+        </el-button>
+        <input
+          ref="fileInput"
+          style="display: none"
+          type="file"
+          accept=".dcm"
+          @change="handleFileChange"
+        >
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { Upload } from '@element-plus/icons-vue'
+import { Picture, PictureFilled, MagicStick, Upload } from '@element-plus/icons-vue'
 
 defineProps({
   url1: String,
@@ -89,27 +94,71 @@ const handleFileChange = (event) => {
 </script>
 
 <style scoped>
-.demo-image__preview1, .demo-image__preview2 {
-  display: inline-block;
-  width: 48%;
-  margin: 1%;
-  text-align: center;
+.image-workspace {
+  height: 100%;
 }
-.image_1 {
+
+.image-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.image-box {
+  position: relative;
+}
+
+.image-wrapper {
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #333;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+}
+
+.main-image {
   width: 100%;
-  height: 250px;
-  background-color: #f5f7fa;
+  height: 100%;
 }
-.img_info_1 {
-  background-color: #409EFF;
-  padding: 5px 0;
+
+.image-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  gap: 12px;
 }
-.error {
+
+.image-label {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  color: white;
+  padding: 4px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.image-label.diagnostic {
+  background: rgba(64, 158, 255, 0.7);
+}
+
+.upload-overlay {
+  margin-top: 20px;
   display: flex;
   justify-content: center;
-  align-items: center;
-  height: 250px;
-  color: #909399;
-  background-color: #f5f7fa;
 }
 </style>
