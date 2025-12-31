@@ -1,0 +1,1020 @@
+<template>
+  <div class="diagnosis-container">
+    <!-- 顶部流程指示 -->
+    <div class="workflow-steps">
+      <el-steps :active="currentStep" finish-status="success" align-center>
+        <el-step title="上传影像" :icon="Upload" />
+        <el-step title="AI分析" :icon="Cpu" />
+        <el-step title="查看结果" :icon="DataAnalysis" />
+      </el-steps>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <el-row :gutter="20">
+        <!-- 左侧：患者信息 + 操作面板 -->
+        <el-col :xl="5" :lg="6" :md="8" :sm="24">
+          <div class="left-panel">
+            <!-- 患者信息卡片 -->
+            <el-card class="panel-card" shadow="hover">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><User /></el-icon>
+                  <span>患者信息</span>
+                </div>
+              </template>
+              
+              <div class="search-box">
+                <el-input 
+                  v-model="searchId" 
+                  placeholder="输入患者ID"
+                  @keyup.enter="fetchPatientData(searchId)"
+                  clearable
+                >
+                  <template #append>
+                    <el-button :icon="Search" @click="fetchPatientData(searchId)" />
+                  </template>
+                </el-input>
+              </div>
+
+              <el-descriptions :column="1" border size="small" class="patient-desc">
+                <el-descriptions-item label="姓名">{{ patient.name || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="性别">{{ patient.gender || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="年龄">{{ patient.age || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="电话">{{ patient.phone || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="检查部位">{{ patient.part || '-' }}</el-descriptions-item>
+              </el-descriptions>
+            </el-card>
+
+            <!-- 操作面板 -->
+            <el-card class="panel-card action-panel" shadow="hover">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Operation /></el-icon>
+                  <span>诊断操作</span>
+                </div>
+              </template>
+
+              <div class="action-content">
+                <!-- 上传按钮 -->
+                <el-upload
+                  ref="uploadRef"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  accept=".dcm"
+                  :on-change="handleFileSelect"
+                  class="upload-area"
+                  drag
+                >
+                  <div class="upload-content">
+                    <el-icon class="upload-icon" :size="40"><UploadFilled /></el-icon>
+                    <div class="upload-text">
+                      <p>拖拽文件到此处或 <em>点击上传</em></p>
+                      <p class="upload-hint">支持 .dcm 格式</p>
+                    </div>
+                  </div>
+                </el-upload>
+
+                <!-- 当前文件 -->
+                <div v-if="currentFile" class="current-file">
+                  <el-icon><Document /></el-icon>
+                  <span class="filename">{{ currentFile.name }}</span>
+                  <el-button link type="danger" @click="clearFile">
+                    <el-icon><Close /></el-icon>
+                  </el-button>
+                </div>
+
+                <!-- 开始诊断按钮 -->
+                <el-button 
+                  type="primary" 
+                  size="large"
+                  class="start-btn"
+                  :loading="loading"
+                  :disabled="!url1"
+                  @click="handleStartDiagnosis"
+                >
+                  <el-icon><VideoPlay /></el-icon>
+                  开始 AI 辅助诊断
+                </el-button>
+
+                <p class="status-hint" v-if="!url1">
+                  <el-icon><InfoFilled /></el-icon>
+                  请先上传 CT 影像文件
+                </p>
+              </div>
+            </el-card>
+          </div>
+        </el-col>
+
+        <!-- 中间：影像工作区 -->
+        <el-col :xl="13" :lg="12" :md="16" :sm="24">
+          <el-card class="workspace-card" shadow="hover">
+            <template #header>
+              <div class="card-header">
+                <el-icon><Picture /></el-icon>
+                <span>影像工作区</span>
+                <div class="header-extra" v-if="url1">
+                  <el-tag type="success" size="small">已上传</el-tag>
+                  <el-tag v-if="url2" type="primary" size="small">已诊断</el-tag>
+                </div>
+              </div>
+            </template>
+
+            <div class="image-grid">
+              <!-- 原始图像 -->
+              <div class="image-panel">
+                <div class="panel-label">原始 CT 影像</div>
+                <div class="image-frame" v-loading="uploading" element-loading-text="上传中...">
+                  <el-image
+                    v-if="url1"
+                    :src="url1"
+                    :preview-src-list="[url1]"
+                    fit="contain"
+                    class="ct-image"
+                  />
+                  <div v-else class="placeholder">
+                    <el-icon :size="64"><PictureFilled /></el-icon>
+                    <p>等待上传影像</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 诊断结果 -->
+              <div class="image-panel">
+                <div class="panel-label result-label">AI 诊断结果</div>
+                <div class="image-frame" v-loading="diagnosing" element-loading-text="AI 分析中...">
+                  <el-image
+                    v-if="url2"
+                    :src="url2"
+                    :preview-src-list="[url2]"
+                    fit="contain"
+                    class="ct-image"
+                  />
+                  <div v-else class="placeholder">
+                    <el-icon :size="64"><MagicStick /></el-icon>
+                    <p>{{ diagnosing ? '正在分析...' : '等待诊断结果' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 图像操作工具栏 -->
+            <div class="image-toolbar" v-if="url1 || url2">
+              <el-button-group>
+                <el-tooltip content="重新上传" placement="top">
+                  <el-button :icon="Refresh" @click="triggerReupload" />
+                </el-tooltip>
+                <el-tooltip content="对比查看" placement="top">
+                  <el-button :icon="Switch" :disabled="!url2" @click="toggleCompare" />
+                </el-tooltip>
+                <el-tooltip content="全屏预览" placement="top">
+                  <el-button :icon="FullScreen" :disabled="!url1" @click="fullscreenPreview" />
+                </el-tooltip>
+              </el-button-group>
+            </div>
+          </el-card>
+        </el-col>
+
+        <!-- 右侧：特征分析 -->
+        <el-col :xl="6" :lg="6" :md="24" :sm="24">
+          <el-card class="analysis-card" shadow="hover">
+            <template #header>
+              <div class="card-header">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>特征分析</span>
+              </div>
+            </template>
+
+            <el-tabs v-model="activeTab" class="analysis-tabs">
+              <!-- 特征列表 -->
+              <el-tab-pane label="特征数据" name="features">
+                <div class="feature-list" v-if="featureList.length">
+                  <div 
+                    v-for="(item, index) in featureList" 
+                    :key="index"
+                    class="feature-item"
+                  >
+                    <span class="feature-name">{{ item.name }}</span>
+                    <span class="feature-value">{{ item.value }}</span>
+                  </div>
+                </div>
+                <el-empty v-else description="暂无特征数据" :image-size="80" />
+              </el-tab-pane>
+
+              <!-- 面积图表 -->
+              <el-tab-pane label="面积对比" name="area">
+                <div ref="areaChartRef" class="chart-container"></div>
+              </el-tab-pane>
+
+              <!-- 周长图表 -->
+              <el-tab-pane label="周长对比" name="perimeter">
+                <div ref="perimeterChartRef" class="chart-container"></div>
+              </el-tab-pane>
+            </el-tabs>
+
+            <!-- 快速统计 -->
+            <div class="quick-stats" v-if="areaData || perimeterData">
+              <div class="stat-item">
+                <div class="stat-label">面积</div>
+                <div class="stat-value">{{ areaData.toFixed(2) }} px²</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">周长</div>
+                <div class="stat-value">{{ perimeterData.toFixed(2) }} px</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 诊断进度对话框 -->
+    <el-dialog 
+      v-model="isProcessing" 
+      title="AI 诊断分析中" 
+      :close-on-click-modal="false"
+      :show-close="false"
+      width="420px"
+      center
+      class="progress-dialog"
+    >
+      <div class="progress-content">
+        <el-progress 
+          type="dashboard" 
+          :percentage="percentage" 
+          :color="progressColors"
+          :stroke-width="12"
+          :width="160"
+        >
+          <template #default="{ percentage }">
+            <div class="progress-inner">
+              <span class="progress-value">{{ percentage }}%</span>
+              <span class="progress-label">完成度</span>
+            </div>
+          </template>
+        </el-progress>
+        
+        <div class="progress-status">
+          <el-icon class="is-loading" v-if="percentage < 100"><Loading /></el-icon>
+          <el-icon color="#67c23a" v-else><CircleCheck /></el-icon>
+          <span>{{ progressStatus }}</span>
+        </div>
+
+        <div class="progress-steps">
+          <div 
+            v-for="(step, index) in progressSteps" 
+            :key="index"
+            class="step-item"
+            :class="{ active: currentProgressStep >= index, done: currentProgressStep > index }"
+          >
+            <el-icon v-if="currentProgressStep > index"><Check /></el-icon>
+            <span v-else>{{ index + 1 }}</span>
+            <p>{{ step }}</p>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 隐藏的重新上传input -->
+    <input
+      ref="reuploadInput"
+      type="file"
+      accept=".dcm"
+      style="display: none"
+      @change="handleReupload"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import * as echarts from 'echarts'
+import {
+  User, Search, Operation, Upload, UploadFilled, VideoPlay,
+  Picture, PictureFilled, MagicStick, DataAnalysis, Document,
+  Close, InfoFilled, Refresh, Switch, FullScreen, Loading,
+  CircleCheck, Check, Cpu
+} from '@element-plus/icons-vue'
+
+import { getPatientInfo } from '@/services/patient'
+import { startTask, uploadDcm } from '@/services/task'
+import { useAiPrediction } from '@/composables/useAiPrediction'
+
+const route = useRoute()
+const { 
+  percentage, 
+  progressStatus, 
+  isProcessing, 
+  resultData, 
+  initSocket 
+} = useAiPrediction()
+
+// Refs
+const uploadRef = ref(null)
+const reuploadInput = ref(null)
+const areaChartRef = ref(null)
+const perimeterChartRef = ref(null)
+
+// State
+const loading = ref(false)
+const uploading = ref(false)
+const diagnosing = ref(false)
+const searchId = ref('')
+const currentFile = ref(null)
+const url1 = ref('')
+const url2 = ref('')
+const featureList = ref([])
+const areaData = ref(0)
+const perimeterData = ref(0)
+const activeTab = ref('features')
+
+// Charts
+let areaChart = null
+let perimeterChart = null
+
+// 患者信息
+const patient = ref({
+  id: '',
+  name: '',
+  gender: '',
+  age: '',
+  phone: '',
+  part: ''
+})
+
+// 流程步骤
+const currentStep = computed(() => {
+  if (url2.value) return 3
+  if (url1.value) return 1
+  return 0
+})
+
+// 进度步骤
+const progressSteps = ['图像预处理', '模型推理', '特征提取', '结果生成']
+const currentProgressStep = computed(() => {
+  if (percentage.value >= 90) return 4
+  if (percentage.value >= 70) return 3
+  if (percentage.value >= 50) return 2
+  if (percentage.value >= 30) return 1
+  return 0
+})
+
+const progressColors = [
+  { color: '#f56c6c', percentage: 20 },
+  { color: '#e6a23c', percentage: 40 },
+  { color: '#5cb87a', percentage: 60 },
+  { color: '#1989fa', percentage: 80 },
+  { color: '#67c23a', percentage: 100 },
+]
+
+// 监听 AI 预测结果
+watch(resultData, (newData) => {
+  if (newData.url2) {
+    url2.value = newData.url2
+    featureList.value = newData.featureList || []
+    areaData.value = newData.area || 0
+    perimeterData.value = newData.perimeter || 0
+    diagnosing.value = false
+    updateCharts()
+  }
+}, { deep: true })
+
+// 监听 Tab 切换更新图表
+watch(activeTab, (newTab) => {
+  if (newTab === 'area' || newTab === 'perimeter') {
+    nextTick(() => updateCharts())
+  }
+})
+
+// Methods
+const fetchPatientData = async (id) => {
+  if (!id) return
+  loading.value = true
+  try {
+    const res = await getPatientInfo(id)
+    if (res.status === 1 && res.data) {
+      const d = res.data
+      patient.value = {
+        id: d['ID'] || '',
+        name: d['姓名'] || '',
+        gender: d['性别'] || '',
+        age: d['年龄'] || '',
+        phone: d['电话'] || '',
+        part: d['部位'] || ''
+      }
+      ElMessage.success('患者信息获取成功')
+    } else {
+      ElMessage.warning(res.error || '未找到该患者信息')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取患者信息失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleFileSelect = async (file) => {
+  currentFile.value = file.raw
+  await uploadFile(file.raw)
+}
+
+const uploadFile = async (file) => {
+  uploading.value = true
+  try {
+    const res = await uploadDcm(file)
+    if (res.status === 1) {
+      url1.value = res.image_url
+      // 清空之前的结果
+      url2.value = ''
+      featureList.value = []
+      areaData.value = 0
+      perimeterData.value = 0
+      ElMessage.success('影像上传成功')
+    } else {
+      ElMessage.error(res.error || '上传失败')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('上传失败: ' + (e.message || '未知错误'))
+  } finally {
+    uploading.value = false
+  }
+}
+
+const clearFile = () => {
+  currentFile.value = null
+  url1.value = ''
+  url2.value = ''
+  featureList.value = []
+  areaData.value = 0
+  perimeterData.value = 0
+}
+
+const triggerReupload = () => {
+  reuploadInput.value?.click()
+}
+
+const handleReupload = (e) => {
+  const file = e.target.files[0]
+  if (file) {
+    currentFile.value = file
+    uploadFile(file)
+  }
+  e.target.value = ''
+}
+
+const handleStartDiagnosis = async () => {
+  if (!url1.value) {
+    return ElMessage.warning('请先上传 CT 影像')
+  }
+  
+  diagnosing.value = true
+  isProcessing.value = true
+  percentage.value = 0
+  progressStatus.value = '正在进行AI分析...'
+  
+  try {
+    const progressInterval = setInterval(() => {
+      if (percentage.value < 90) {
+        percentage.value += 10
+        if (percentage.value === 30) progressStatus.value = '预处理图像...'
+        if (percentage.value === 50) progressStatus.value = '模型推理中...'
+        if (percentage.value === 70) progressStatus.value = '提取特征...'
+        if (percentage.value === 90) progressStatus.value = '生成结果...'
+      }
+    }, 400)
+    
+    const res = await startTask({ imageUrl: url1.value })
+    
+    clearInterval(progressInterval)
+    percentage.value = 100
+    progressStatus.value = '分析完成'
+    
+    if (res.status === 1) {
+      url2.value = res.draw_url
+      
+      if (res.image_info) {
+        const info = res.image_info
+        featureList.value = Object.entries(info).map(([key, value]) => ({
+          name: key,
+          value: typeof value === 'number' ? value.toFixed(4) : value
+        }))
+        areaData.value = info['面积'] || info['area'] || 0
+        perimeterData.value = info['周长'] || info['perimeter'] || 0
+      }
+      
+      ElMessage.success('AI诊断分析完成')
+      updateCharts()
+    } else {
+      ElMessage.error(res.error || '分析失败')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('诊断失败: ' + (e.message || '未知错误'))
+  } finally {
+    diagnosing.value = false
+    setTimeout(() => {
+      isProcessing.value = false
+    }, 1000)
+  }
+}
+
+const toggleCompare = () => {
+  // 可以实现图像对比功能
+  ElMessage.info('对比功能开发中')
+}
+
+const fullscreenPreview = () => {
+  // 触发图片预览
+  const imgEl = document.querySelector('.ct-image .el-image__inner')
+  imgEl?.click()
+}
+
+const updateCharts = () => {
+  nextTick(() => {
+    // 面积图表
+    if (areaChartRef.value && activeTab.value === 'area') {
+      if (!areaChart) {
+        areaChart = echarts.init(areaChartRef.value)
+      }
+      areaChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+        xAxis: { 
+          type: 'category', 
+          data: ['样本1', '样本2', '样本3', '样本4', '样本5', '样本6', '样本7', '当前'],
+          axisLabel: { fontSize: 10 }
+        },
+        yAxis: { type: 'value', name: '面积(px²)', nameTextStyle: { fontSize: 10 } },
+        series: [{
+          name: '面积',
+          type: 'line',
+          smooth: true,
+          data: [1300, 1290, 1272, 1123.5, 1123, 1092, 1086, areaData.value],
+          itemStyle: { color: '#409eff' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
+              { offset: 1, color: 'rgba(64, 158, 255, 0)' }
+            ])
+          }
+        }]
+      })
+    }
+
+    // 周长图表
+    if (perimeterChartRef.value && activeTab.value === 'perimeter') {
+      if (!perimeterChart) {
+        perimeterChart = echarts.init(perimeterChartRef.value)
+      }
+      perimeterChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+        xAxis: { 
+          type: 'category', 
+          data: ['样本1', '样本2', '样本3', '样本4', '样本5', '样本6', '样本7', '当前'],
+          axisLabel: { fontSize: 10 }
+        },
+        yAxis: { type: 'value', name: '周长(px)', nameTextStyle: { fontSize: 10 } },
+        series: [{
+          name: '周长',
+          type: 'bar',
+          data: [150, 145, 142, 138, 135, 130, 128, perimeterData.value],
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#67c23a' },
+              { offset: 1, color: '#95d475' }
+            ]),
+            borderRadius: [4, 4, 0, 0]
+          }
+        }]
+      })
+    }
+  })
+}
+
+const handleResize = () => {
+  areaChart?.resize()
+  perimeterChart?.resize()
+}
+
+// 监听全局上传事件
+const handleGlobalUpload = (event) => {
+  if (event.detail) {
+    currentFile.value = event.detail
+    uploadFile(event.detail)
+  }
+}
+
+onMounted(() => {
+  initSocket()
+  const id = route.query.id || '20190001'
+  searchId.value = id
+  fetchPatientData(id)
+  
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('upload-ct-file', handleGlobalUpload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  window.removeEventListener('upload-ct-file', handleGlobalUpload)
+  areaChart?.dispose()
+  perimeterChart?.dispose()
+})
+</script>
+
+<style scoped>
+.diagnosis-container {
+  padding: 20px;
+  min-height: calc(100vh - 70px);
+}
+
+/* 流程步骤 */
+.workflow-steps {
+  background: #fff;
+  padding: 20px 40px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* 左侧面板 */
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-card {
+  border-radius: 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.header-extra {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.search-box {
+  margin-bottom: 16px;
+}
+
+.patient-desc :deep(.el-descriptions__label) {
+  width: 80px;
+  font-weight: 500;
+}
+
+/* 操作面板 */
+.action-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-area {
+  width: 100%;
+}
+
+.upload-area :deep(.el-upload-dragger) {
+  padding: 20px;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: all 0.3s;
+}
+
+.upload-area :deep(.el-upload-dragger:hover) {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-icon {
+  color: #909399;
+}
+
+.upload-text p {
+  margin: 0;
+  color: #606266;
+  font-size: 13px;
+}
+
+.upload-text em {
+  color: #409eff;
+  font-style: normal;
+}
+
+.upload-hint {
+  color: #909399 !important;
+  font-size: 12px !important;
+}
+
+.current-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f0f9eb;
+  border-radius: 6px;
+  color: #67c23a;
+}
+
+.filename {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.start-btn {
+  width: 100%;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.status-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #909399;
+  font-size: 12px;
+  margin: 0;
+}
+
+/* 影像工作区 */
+.workspace-card {
+  border-radius: 12px;
+  min-height: 500px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.image-panel {
+  position: relative;
+}
+
+.panel-label {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 4px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  backdrop-filter: blur(4px);
+}
+
+.panel-label.result-label {
+  background: rgba(64, 158, 255, 0.8);
+}
+
+.image-frame {
+  aspect-ratio: 1;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ct-image {
+  width: 100%;
+  height: 100%;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #606266;
+}
+
+.placeholder p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.image-toolbar {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 特征分析 */
+.analysis-card {
+  border-radius: 12px;
+  min-height: 500px;
+}
+
+.analysis-tabs :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.feature-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.feature-item:hover {
+  background: #f0f7ff;
+  transform: translateX(2px);
+}
+
+.feature-name {
+  color: #606266;
+  font-size: 13px;
+}
+
+.feature-value {
+  font-family: 'Monaco', monospace;
+  font-weight: 600;
+  color: #409eff;
+  font-size: 13px;
+}
+
+.chart-container {
+  height: 280px;
+}
+
+.quick-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 12px;
+  background: linear-gradient(135deg, #f0f9eb 0%, #e1f3d8 100%);
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #67c23a;
+}
+
+/* 进度对话框 */
+.progress-dialog :deep(.el-dialog) {
+  border-radius: 16px;
+}
+
+.progress-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.progress-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.progress-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.progress-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.progress-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 15px;
+  color: #606266;
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-item span,
+.step-item .el-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.3s;
+}
+
+.step-item.active span,
+.step-item.active .el-icon {
+  background: #409eff;
+  color: #fff;
+}
+
+.step-item.done .el-icon {
+  background: #67c23a;
+  color: #fff;
+}
+
+.step-item p {
+  margin: 0;
+  font-size: 11px;
+  color: #909399;
+}
+
+.step-item.active p {
+  color: #409eff;
+  font-weight: 500;
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+  .image-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .diagnosis-container {
+    padding: 12px;
+  }
+  
+  .workflow-steps {
+    padding: 12px 20px;
+  }
+  
+  .quick-stats {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

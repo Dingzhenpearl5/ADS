@@ -18,7 +18,7 @@ const routes = [
         children: [
             { 
                 path: 'home', 
-                component: () => import('../modules/imaging/views/DiagnosisView.vue'), 
+                component: () => import('../modules/imaging/views/DiagnosisViewNew.vue'), 
                 meta: { title: "工作台 - 肿瘤辅助诊断系统" } 
             },
             {
