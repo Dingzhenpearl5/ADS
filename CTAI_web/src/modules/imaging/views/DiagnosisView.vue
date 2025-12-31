@@ -198,15 +198,24 @@ const handleFile = async (file) => {
   loading.value = true
   try {
     const res = await uploadDcm(file)
-    url1.value = res.image_url
-    srcList.value = [res.image_url]
-    url2.value = ''
-    srcList1.value = []
-    featureList.value = []
-    ElMessage.success('影像上传成功')
+    
+    if (res.status === 1) {
+      url1.value = res.image_url
+      srcList.value = [res.image_url]
+      // 上传成功后清空之前的预测结果
+      url2.value = ''
+      srcList1.value = []
+      featureList.value = []
+      areaData.value = 0
+      perimeterData.value = 0
+      
+      ElMessage.success('影像上传成功，请点击"开始AI辅助诊断"')
+    } else {
+      ElMessage.error(res.error || '上传失败')
+    }
   } catch (e) {
     console.error(e)
-    ElMessage.error('上传失败')
+    ElMessage.error('上传失败: ' + (e.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -218,20 +227,74 @@ const handleStartDiagnosis = async () => {
   }
   
   loading.value = true
+  isProcessing.value = true
+  percentage.value = 0
+  progressStatus.value = '正在进行AI分析...'
+  
   try {
-    await startTask({ imageUrl: url1.value })
+    // 模拟进度更新
+    const progressInterval = setInterval(() => {
+      if (percentage.value < 90) {
+        percentage.value += 10
+        if (percentage.value === 30) progressStatus.value = '预处理图像...'
+        if (percentage.value === 50) progressStatus.value = '模型推理中...'
+        if (percentage.value === 70) progressStatus.value = '提取特征...'
+        if (percentage.value === 90) progressStatus.value = '生成结果...'
+      }
+    }, 400)
+    
+    const res = await startTask({ imageUrl: url1.value })
+    
+    clearInterval(progressInterval)
+    percentage.value = 100
+    progressStatus.value = '分析完成'
+    
+    if (res.status === 1) {
+      url2.value = res.draw_url
+      srcList1.value = [res.draw_url]
+      
+      // 处理特征数据
+      if (res.image_info) {
+        const info = res.image_info
+        featureList.value = Object.entries(info).map(([key, value]) => ({
+          name: key,
+          value: typeof value === 'number' ? value.toFixed(4) : value
+        }))
+        areaData.value = info['面积'] || info['area'] || 0
+        perimeterData.value = info['周长'] || info['perimeter'] || 0
+      }
+      
+      ElMessage.success('AI诊断分析完成')
+    } else {
+      ElMessage.error(res.error || '分析失败')
+    }
   } catch (e) {
     console.error(e)
-    ElMessage.error('启动诊断任务失败')
+    ElMessage.error('诊断失败: ' + (e.message || '未知错误'))
+  } finally {
     loading.value = false
+    setTimeout(() => {
+      isProcessing.value = false
+    }, 1000)
   }
 }
 
 const downTemplate = async () => {
   try {
-    await downloadTemplate()
-    ElMessage.success('测试数据下载开始')
+    const res = await downloadTemplate()
+    // 处理 blob 下载
+    const blob = new Blob([res], { type: 'application/zip' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'testfile.zip'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('测试数据下载成功')
   } catch (e) {
+    console.error(e)
     ElMessage.error('下载失败')
   }
 }
@@ -239,7 +302,7 @@ const downTemplate = async () => {
 // Lifecycle
 onMounted(() => {
   initSocket()
-  const id = route.query.id || '10007'
+  const id = route.query.id || '20190001'
   fetchPatientData(id)
 })
 

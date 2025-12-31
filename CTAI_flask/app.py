@@ -311,6 +311,7 @@ def get_patient():
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
+    """上传CT图像接口 - 仅上传和预处理，不进行预测"""
     print(f"\n{'='*60}")
     print(f"[Upload] 收到上传请求")
     
@@ -330,17 +331,18 @@ def upload_file():
             shutil.copy(src_path, tmp_ct_dir)
             image_path = os.path.join(tmp_ct_dir, file.filename)
             
-            # 处理图像
-            print(f"[Upload] 开始处理图像...")
-            pid, image_info = core.main.c_main(image_path, app.model)
+            # 仅进行预处理，生成预览图
+            print(f"[Upload] 预处理图像...")
+            from core import process
+            image_data = process.pre_process(image_path)
+            pid = image_data[1]  # 文件名（不含扩展名）
             
             result = {
                 'status': 1,
-                'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid,
-                'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
-                'image_info': image_info
+                'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid + '.png',
+                'message': '上传成功，请点击开始诊断'
             }
-            print(f"[Upload] 处理成功!")
+            print(f"[Upload] 上传成功!")
             print(f"{'='*60}\n")
             return jsonify(result)
         else:
@@ -353,6 +355,54 @@ def upload_file():
         traceback.print_exc()
         return jsonify({'status': 0, 'error': str(e)})
 
+
+
+@app.route('/api/predict', methods=['POST', 'OPTIONS'])
+def predict_image():
+    """AI预测接口 - 对已上传的图像进行预测分析"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    print(f"\n{'='*60}")
+    print(f"[Predict] 收到预测请求")
+    
+    try:
+        data = request.get_json()
+        image_url = data.get('imageUrl', '')
+        
+        # 从URL中提取文件名
+        # image_url 格式: http://127.0.0.1:5003/tmp/image/xxx.png
+        if '/tmp/image/' in image_url:
+            filename = image_url.split('/tmp/image/')[-1].replace('.png', '')
+        else:
+            return jsonify({'status': 0, 'error': '无效的图像URL'})
+        
+        print(f"[Predict] 处理文件: {filename}")
+        
+        # 检查原始dcm文件是否存在
+        dcm_path = os.path.join(BASE_DIR, 'tmp', 'ct', f'{filename}.dcm')
+        if not os.path.exists(dcm_path):
+            return jsonify({'status': 0, 'error': '原始图像文件不存在'})
+        
+        # 执行预测
+        print(f"[Predict] 开始AI分析...")
+        pid, image_info = core.main.c_main(dcm_path, app.model)
+        
+        result = {
+            'status': 1,
+            'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid,
+            'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
+            'image_info': image_info
+        }
+        print(f"[Predict] 预测完成!")
+        print(f"{'='*60}\n")
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"[Predict] 预测失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 0, 'error': str(e)})
 
 
 @app.route("/download", methods=['GET'])

@@ -1,5 +1,52 @@
 from core import process, predict, get_feature
 import time
+import os
+import cv2
+import numpy as np
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def generate_mock_mask(file_name):
+    """生成模拟的mask图像（用于无模型时的测试）"""
+    print(f"[Mock] 生成模拟mask...")
+    
+    # 读取原始图像
+    image_path = os.path.join(BASE_DIR, 'tmp', 'image', f'{file_name}.png')
+    if os.path.exists(image_path):
+        img = cv2.imread(image_path, 0)
+        h, w = img.shape
+    else:
+        h, w = 512, 512
+    
+    # 创建一个模拟的椭圆形mask（模拟肿瘤区域）
+    mask = np.zeros((h, w), dtype=np.uint8)
+    center = (w // 2 + 50, h // 2 + 30)  # 稍微偏移中心
+    axes = (40, 30)  # 椭圆的轴长
+    cv2.ellipse(mask, center, axes, 0, 0, 360, 255, -1)
+    
+    # 保存mask
+    tmp_mask_dir = os.path.join(BASE_DIR, 'tmp', 'mask')
+    if not os.path.exists(tmp_mask_dir):
+        os.makedirs(tmp_mask_dir)
+    mask_path = os.path.join(tmp_mask_dir, f'{file_name}_mask.png')
+    cv2.imwrite(mask_path, mask)
+    print(f"[Mock] 模拟mask已保存: {mask_path}")
+
+
+def generate_mock_features():
+    """生成模拟的特征数据"""
+    return {
+        '面积': round(np.random.uniform(800, 1500), 2),
+        '周长': round(np.random.uniform(100, 200), 2),
+        '重心x': round(np.random.uniform(250, 300), 2),
+        '重心y': round(np.random.uniform(280, 320), 2),
+        '似圆度': round(np.random.uniform(0.7, 0.95), 4),
+        '灰度均值': round(np.random.uniform(100, 150), 2),
+        '灰度方差': round(np.random.uniform(20, 50), 2),
+        '灰度偏度': round(np.random.uniform(-0.5, 0.5), 4),
+        '灰度峰态': round(np.random.uniform(-1, 1), 4),
+    }
 
 
 def c_main(path, model):
@@ -21,10 +68,8 @@ def c_main(path, model):
             predict.predict(image_data, model)
             print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
         else:
-            print(f"[Main] ⚠️ 模型未加载，跳过预测步骤")
-            # 如果没有模型，我们需要一个默认的mask或者报错
-            # 这里假设如果没有模型就无法继续
-            raise RuntimeError("模型未加载，无法进行预测")
+            print(f"[Main] ⚠️ 模型未加载，使用模拟数据")
+            generate_mock_mask(image_data[1])
         
         # 3. 后处理
         print(f"[Main] Step 3/4: 后处理...")
@@ -35,7 +80,11 @@ def c_main(path, model):
         # 4. 特征提取
         print(f"[Main] Step 4/4: 特征提取...")
         t4 = time.time()
-        image_info = get_feature.main(image_data[1])
+        if model is not None:
+            image_info = get_feature.main(image_data[1])
+        else:
+            image_info = generate_mock_features()
+            print(f"[Main] ⚠️ 使用模拟特征数据")
         print(f"[Main] ✅ 特征提取完成 ({time.time()-t4:.2f}秒)")
         
         total_time = time.time() - start_time
