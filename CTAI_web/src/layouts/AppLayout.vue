@@ -17,7 +17,7 @@
 import { useRouter } from 'vue-router'
 import Header from './Header.vue'
 import Footer from './Footer.vue'
-import { downloadTemplate, uploadDcm } from '@/services/task'
+import { downloadTemplate } from '@/services/task'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
