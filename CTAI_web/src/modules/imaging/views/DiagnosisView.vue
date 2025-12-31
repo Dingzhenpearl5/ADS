@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Operation, VideoPlay, Loading, Check } from '@element-plus/icons-vue'
@@ -300,10 +300,24 @@ const downTemplate = async () => {
 }
 
 // Lifecycle
+// 监听全局上传事件（从Header触发）
+const handleGlobalUpload = (event) => {
+  if (event.detail) {
+    handleFile(event.detail)
+  }
+}
+
 onMounted(() => {
   initSocket()
   const id = route.query.id || '20190001'
   fetchPatientData(id)
+  
+  // 监听全局上传事件
+  window.addEventListener('upload-ct-file', handleGlobalUpload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('upload-ct-file', handleGlobalUpload)
 })
 
 // Expose methods for Home.vue

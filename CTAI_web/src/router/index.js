@@ -11,10 +11,27 @@ const routes = [
         component: () => import('../modules/auth/views/Login.vue'), 
         meta: { title: "登录 - 肿瘤辅助诊断系统", requiresAuth: false } 
     },
-    { 
-        path: '/home', 
-        component: () => import('../layouts/MainLayout.vue'), 
-        meta: { title: "首页 - 肿瘤辅助诊断系统", requiresAuth: true } 
+    {
+        path: '/',
+        component: () => import('../layouts/AppLayout.vue'),
+        meta: { requiresAuth: true },
+        children: [
+            { 
+                path: 'home', 
+                component: () => import('../modules/imaging/views/DiagnosisView.vue'), 
+                meta: { title: "工作台 - 肿瘤辅助诊断系统" } 
+            },
+            {
+                path: 'history',
+                component: () => import('../modules/report/views/HistoryView.vue'),
+                meta: { title: "历史记录 - 肿瘤辅助诊断系统" }
+            },
+            {
+                path: 'statistics',
+                component: () => import('../modules/report/views/StatisticsView.vue'),
+                meta: { title: "统计分析 - 肿瘤辅助诊断系统" }
+            }
+        ]
     },
     { 
         path: "/App", 

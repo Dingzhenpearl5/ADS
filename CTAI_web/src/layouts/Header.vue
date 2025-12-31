@@ -98,8 +98,30 @@ const authStore = useAuthStore()
 const activeIndex = ref('1')
 const fileInput = ref(null)
 
+// 路由与菜单索引的映射
+const routeMap = {
+  '1': '/home',
+  '2': '/history',
+  '3': '/statistics'
+}
+
+// 根据当前路由设置激活菜单
+const updateActiveIndex = () => {
+  const path = router.currentRoute.value.path
+  for (const [key, value] of Object.entries(routeMap)) {
+    if (path === value) {
+      activeIndex.value = key
+      break
+    }
+  }
+}
+
 const handleSelect = (key) => {
   activeIndex.value = key
+  const targetRoute = routeMap[key]
+  if (targetRoute && router.currentRoute.value.path !== targetRoute) {
+    router.push(targetRoute)
+  }
 }
 
 const triggerUpload = () => {
@@ -133,6 +155,7 @@ const handleLogout = async () => {
 
 onMounted(() => {
   authStore.checkAuth()
+  updateActiveIndex()
 })
 </script>
 

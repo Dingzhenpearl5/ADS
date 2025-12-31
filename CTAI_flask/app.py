@@ -18,6 +18,11 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# 服务器配置（方便部署时修改）
+SERVER_HOST = '127.0.0.1'
+SERVER_PORT = 5003
+SERVER_URL = f'http://{SERVER_HOST}:{SERVER_PORT}'
+
 # 创建 tmp 子目录
 for subdir in ['ct', 'image', 'mask', 'draw']:
     tmp_path = os.path.join(BASE_DIR, 'tmp', subdir)
@@ -28,6 +33,7 @@ ALLOWED_EXTENSIONS = set(['dcm'])
 app = Flask(__name__)
 app.secret_key = 'secret!'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 限制上传文件最大50MB
 app.model = None
 
 # ==================== Socket.IO 配置 ====================
@@ -82,6 +88,31 @@ class Patient(db.Model):
     age = db.Column(db.Integer)
     phone = db.Column(db.String(20))
     part = db.Column(db.String(50))
+
+# 诊断记录模型（扩展功能）
+class DiagnosisRecord(db.Model):
+    """保存每次诊断的历史记录，便于追溯和统计"""
+    __tablename__ = 'diagnosis_records'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.String(50), db.ForeignKey('patients.patient_id'), nullable=True)
+    doctor_username = db.Column(db.String(50), db.ForeignKey('users.username'), nullable=True)
+    
+    # 文件信息
+    filename = db.Column(db.String(255), nullable=False)
+    image_url = db.Column(db.String(500))
+    draw_url = db.Column(db.String(500))
+    
+    # 诊断结果
+    area = db.Column(db.Float)  # 面积
+    perimeter = db.Column(db.Float)  # 周长
+    features = db.Column(db.Text)  # JSON格式存储所有特征
+    
+    # 时间信息
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    
+    # 关系
+    patient = db.relationship('Patient', backref=db.backref('diagnoses', lazy=True))
+    doctor = db.relationship('User', backref=db.backref('diagnoses', lazy=True))
 
 def init_db():
     """初始化数据库：创建表并添加默认用户"""
@@ -154,8 +185,18 @@ def after_request(response):
     return response
 
 
+# 处理文件过大的错误
+@app.errorhandler(413)
+def file_too_large(e):
+    return jsonify({
+        'status': 0,
+        'error': '文件过大，最大支持50MB'
+    }), 413
+
+
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+    """检查文件扩展名是否允许"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # 验证token的装饰器
@@ -182,6 +223,54 @@ def token_required(f):
 @app.route('/')
 def hello_world():
     return redirect(url_for('static', filename='./index.html'))
+
+
+# ==================== 辅助函数 ====================
+
+def success_response(data=None, message='操作成功'):
+    """统一成功响应格式"""
+    return jsonify({
+        'status': 1,
+        'message': message,
+        'data': data
+    })
+
+def error_response(error='操作失败', code=400):
+    """统一错误响应格式"""
+    return jsonify({
+        'status': 0,
+        'error': error
+    }), code
+
+
+# ==================== 系统接口 ====================
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """
+    健康检查接口
+    用于检测服务是否正常运行
+    返回: 服务状态、模型状态、数据库状态
+    """
+    model_status = '已加载' if app.model is not None else '未加载(模拟模式)'
+    
+    # 检查数据库连接
+    try:
+        db.session.execute('SELECT 1')
+        db_status = '正常'
+    except:
+        db_status = '异常'
+    
+    return jsonify({
+        'status': 1,
+        'message': '服务运行正常',
+        'data': {
+            'server': SERVER_URL,
+            'model': model_status,
+            'database': db_status,
+            'version': '1.0.0'
+        }
+    })
 
 
 # ==================== 用户认证接口 ====================
@@ -329,7 +418,16 @@ def upload_file():
     print(f"[Upload] 收到上传请求")
     
     try:
+        # 检查是否有文件
+        if 'file' not in request.files:
+            return jsonify({'status': 0, 'error': '未选择文件'})
+        
         file = request.files['file']
+        
+        # 检查文件名是否为空
+        if file.filename == '':
+            return jsonify({'status': 0, 'error': '未选择文件'})
+        
         print(f"[Upload] 文件名: {file.filename}")
         print(f"[Upload] 时间: {datetime.datetime.now()}")
         
@@ -352,7 +450,7 @@ def upload_file():
             
             result = {
                 'status': 1,
-                'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid + '.png',
+                'image_url': f'{SERVER_URL}/tmp/image/{pid}.png',
                 'message': '上传成功，请点击开始诊断'
             }
             print(f"[Upload] 上传成功!")
@@ -414,10 +512,38 @@ def predict_image():
         
         result = {
             'status': 1,
-            'image_url': 'http://127.0.0.1:5003/tmp/image/' + pid,
-            'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
+            'image_url': f'{SERVER_URL}/tmp/image/{pid}',
+            'draw_url': f'{SERVER_URL}/tmp/draw/{pid}',
             'image_info': image_info
         }
+        
+        # 保存诊断记录到数据库
+        try:
+            import json
+            # 从请求中获取可选的患者ID和医生信息
+            patient_id = data.get('patientId')
+            token = request.headers.get('Authorization')
+            doctor_username = None
+            if token and token.startswith('Bearer '):
+                token_record = Token.query.filter_by(token=token[7:]).first()
+                if token_record:
+                    doctor_username = token_record.username
+            
+            record = DiagnosisRecord(
+                patient_id=patient_id,
+                doctor_username=doctor_username,
+                filename=f'{filename}.dcm',
+                image_url=result['image_url'],
+                draw_url=result['draw_url'],
+                area=image_info.get('面积', 0),
+                perimeter=image_info.get('周长', 0),
+                features=json.dumps(image_info, ensure_ascii=False)
+            )
+            db.session.add(record)
+            db.session.commit()
+            print(f"[Predict] 诊断记录已保存，ID: {record.id}")
+        except Exception as save_err:
+            print(f"[Predict] 保存诊断记录失败: {save_err}")
         
         # 通过 Socket 发送结果
         socketio.emit('result', {
@@ -439,24 +565,176 @@ def predict_image():
         return jsonify({'status': 0, 'error': str(e)})
 
 
+# ==================== 扩展接口（诊断历史/统计） ====================
+
+@app.route('/api/diagnosis/history', methods=['GET', 'OPTIONS'])
+def get_diagnosis_history():
+    """
+    获取诊断历史记录
+    参数:
+        - patient_id: 可选，按患者ID筛选
+        - page: 页码，默认1
+        - page_size: 每页数量，默认10
+    """
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        patient_id = request.args.get('patient_id')
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 10))
+        
+        query = DiagnosisRecord.query.order_by(DiagnosisRecord.created_at.desc())
+        
+        if patient_id:
+            query = query.filter_by(patient_id=patient_id)
+        
+        # 分页
+        total = query.count()
+        records = query.offset((page - 1) * page_size).limit(page_size).all()
+        
+        history_list = []
+        for record in records:
+            import json
+            history_list.append({
+                'id': record.id,
+                'patient_id': record.patient_id,
+                'doctor': record.doctor_username,
+                'filename': record.filename,
+                'image_url': record.image_url,
+                'draw_url': record.draw_url,
+                'area': record.area,
+                'perimeter': record.perimeter,
+                'features': json.loads(record.features) if record.features else {},
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else None
+            })
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'list': history_list
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/diagnosis/<int:record_id>', methods=['GET', 'OPTIONS'])
+def get_diagnosis_detail(record_id):
+    """获取单条诊断记录详情"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        record = DiagnosisRecord.query.get(record_id)
+        if not record:
+            return jsonify({'status': 0, 'error': '记录不存在'}), 404
+        
+        import json
+        return jsonify({
+            'status': 1,
+            'data': {
+                'id': record.id,
+                'patient_id': record.patient_id,
+                'patient_name': record.patient.name if record.patient else None,
+                'doctor': record.doctor_username,
+                'filename': record.filename,
+                'image_url': record.image_url,
+                'draw_url': record.draw_url,
+                'area': record.area,
+                'perimeter': record.perimeter,
+                'features': json.loads(record.features) if record.features else {},
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else None
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/statistics', methods=['GET', 'OPTIONS'])
+def get_statistics():
+    """
+    获取系统统计数据
+    用于首页展示或数据分析
+    """
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        # 统计数据
+        total_diagnoses = DiagnosisRecord.query.count()
+        total_patients = Patient.query.count()
+        total_users = User.query.count()
+        
+        # 今日诊断数
+        today = datetime.datetime.now().date()
+        today_start = datetime.datetime.combine(today, datetime.time.min)
+        today_diagnoses = DiagnosisRecord.query.filter(
+            DiagnosisRecord.created_at >= today_start
+        ).count()
+        
+        # 最近7天每日诊断数（用于图表）
+        daily_stats = []
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            day_start = datetime.datetime.combine(day, datetime.time.min)
+            day_end = datetime.datetime.combine(day, datetime.time.max)
+            count = DiagnosisRecord.query.filter(
+                DiagnosisRecord.created_at >= day_start,
+                DiagnosisRecord.created_at <= day_end
+            ).count()
+            daily_stats.append({
+                'date': day.strftime('%m-%d'),
+                'count': count
+            })
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'total_diagnoses': total_diagnoses,
+                'total_patients': total_patients,
+                'total_users': total_users,
+                'today_diagnoses': today_diagnoses,
+                'daily_stats': daily_stats
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
 @app.route("/download", methods=['GET'])
 def download_file():
+    """下载测试数据文件"""
+    file_path = os.path.join(BASE_DIR, 'data', 'testfile.zip')
+    if not os.path.exists(file_path):
+        return jsonify({'status': 0, 'error': '测试数据文件不存在'}), 404
     return send_from_directory('data', 'testfile.zip', as_attachment=True)
 
 
 @app.route('/tmp/<path:file>', methods=['GET'])
 def show_photo(file):
-    if request.method == 'GET':
-        if file is None:
-            pass
-        else:
-            image_path = os.path.join(BASE_DIR, 'tmp', file)
-            image_data = open(image_path, "rb").read()
-            response = make_response(image_data)
-            response.headers['Content-Type'] = 'image/png'
-            return response
-    else:
-        pass
+    """获取临时图像文件（原图/mask/轮廓图）"""
+    if file is None:
+        return jsonify({'status': 0, 'error': '文件路径不能为空'}), 400
+    
+    image_path = os.path.join(BASE_DIR, 'tmp', file)
+    
+    if not os.path.exists(image_path):
+        return jsonify({'status': 0, 'error': '文件不存在'}), 404
+    
+    # 使用 with 语句确保文件正确关闭
+    with open(image_path, 'rb') as f:
+        image_data = f.read()
+    
+    response = make_response(image_data)
+    response.headers['Content-Type'] = 'image/png'
+    return response
 
 
 # 加载真实的UNet模型
@@ -498,9 +776,9 @@ if __name__ == '__main__':
             app.model = None
             
         print("[Server] 启动Flask-SocketIO服务器...")
-        print("[Server] 服务器地址: http://127.0.0.1:5003")
+        print(f"[Server] 服务器地址: {SERVER_URL}")
         print("[Server] Socket.IO 已启用")
-        socketio.run(app, host='127.0.0.1', port=5003, debug=False, use_reloader=False)
+        socketio.run(app, host=SERVER_HOST, port=SERVER_PORT, debug=False, use_reloader=False)
     except Exception as e:
         print(f"[Error] Flask启动失败: {e}")
         import traceback
