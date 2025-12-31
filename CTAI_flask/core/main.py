@@ -49,19 +49,32 @@ def generate_mock_features():
     }
 
 
-def c_main(path, model):
+def c_main(path, model, progress_callback=None):
+    """
+    主处理函数
+    :param path: DCM文件路径
+    :param model: 模型对象
+    :param progress_callback: 进度回调函数 callback(percentage, message)
+    """
     print(f"\n{'='*60}")
     print(f"[Main] 开始处理: {path}")
     start_time = time.time()
     
+    def emit(pct, msg):
+        if progress_callback:
+            progress_callback(pct, msg)
+        print(f"[Progress] {pct}% - {msg}")
+    
     try:
         # 1. 预处理
+        emit(20, '预处理图像...')
         print(f"[Main] Step 1/4: 预处理图像...")
         t1 = time.time()
         image_data = process.pre_process(path)
         print(f"[Main] ✅ 预处理完成 ({time.time()-t1:.2f}秒)")
         
         # 2. 模型预测
+        emit(40, '模型推理中...')
         print(f"[Main] Step 2/4: 模型预测...")
         if model is not None:
             t2 = time.time()
@@ -69,15 +82,18 @@ def c_main(path, model):
             print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
         else:
             print(f"[Main] ⚠️ 模型未加载，使用模拟数据")
+            time.sleep(0.5)  # 模拟延迟
             generate_mock_mask(image_data[1])
         
         # 3. 后处理
+        emit(70, '后处理生成轮廓...')
         print(f"[Main] Step 3/4: 后处理...")
         t3 = time.time()
         process.last_process(image_data[1])
         print(f"[Main] ✅ 后处理完成 ({time.time()-t3:.2f}秒)")
         
         # 4. 特征提取
+        emit(90, '提取特征数据...')
         print(f"[Main] Step 4/4: 特征提取...")
         t4 = time.time()
         if model is not None:

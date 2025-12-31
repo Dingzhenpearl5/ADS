@@ -8,6 +8,7 @@ import uuid
 
 import torch
 from flask import *
+from flask_socketio import SocketIO, emit
 
 import core.main
 import core.net.unet as net
@@ -28,6 +29,18 @@ app = Flask(__name__)
 app.secret_key = 'secret!'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.model = None
+
+# ==================== Socket.IO 配置 ====================
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+@socketio.on('connect')
+def handle_connect():
+    print('[Socket] 客户端已连接')
+    emit('connected', {'status': 'ok'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('[Socket] 客户端已断开')
 
 # ==================== 数据库配置 ====================
 from flask_sqlalchemy import SQLAlchemy
@@ -356,6 +369,13 @@ def upload_file():
         return jsonify({'status': 0, 'error': str(e)})
 
 
+def emit_progress(percentage, message):
+    """发送进度更新到所有客户端"""
+    socketio.emit('progress', {
+        'percentage': percentage,
+        'message': message
+    })
+
 
 @app.route('/api/predict', methods=['POST', 'OPTIONS'])
 def predict_image():
@@ -378,15 +398,19 @@ def predict_image():
             return jsonify({'status': 0, 'error': '无效的图像URL'})
         
         print(f"[Predict] 处理文件: {filename}")
+        emit_progress(10, '正在准备分析...')
         
         # 检查原始dcm文件是否存在
         dcm_path = os.path.join(BASE_DIR, 'tmp', 'ct', f'{filename}.dcm')
         if not os.path.exists(dcm_path):
+            socketio.emit('error', '原始图像文件不存在')
             return jsonify({'status': 0, 'error': '原始图像文件不存在'})
         
-        # 执行预测
+        # 执行预测（带进度回调）
         print(f"[Predict] 开始AI分析...")
-        pid, image_info = core.main.c_main(dcm_path, app.model)
+        pid, image_info = core.main.c_main(dcm_path, app.model, emit_progress)
+        
+        emit_progress(100, '分析完成')
         
         result = {
             'status': 1,
@@ -394,12 +418,22 @@ def predict_image():
             'draw_url': 'http://127.0.0.1:5003/tmp/draw/' + pid,
             'image_info': image_info
         }
+        
+        # 通过 Socket 发送结果
+        socketio.emit('result', {
+            'url2': result['draw_url'],
+            'feature_list': image_info,
+            'area': image_info.get('面积', 0),
+            'perimeter': image_info.get('周长', 0)
+        })
+        
         print(f"[Predict] 预测完成!")
         print(f"{'='*60}\n")
         return jsonify(result)
         
     except Exception as e:
         print(f"[Predict] 预测失败: {e}")
+        socketio.emit('error', str(e))
         import traceback
         traceback.print_exc()
         return jsonify({'status': 0, 'error': str(e)})
@@ -463,9 +497,10 @@ if __name__ == '__main__':
             print("提示: 系统将以无模型模式运行，部分功能可能不可用")
             app.model = None
             
-        print("[Server] 启动Flask服务器...")
+        print("[Server] 启动Flask-SocketIO服务器...")
         print("[Server] 服务器地址: http://127.0.0.1:5003")
-        app.run(host='127.0.0.1', port=5003, debug=False, use_reloader=False)
+        print("[Server] Socket.IO 已启用")
+        socketio.run(app, host='127.0.0.1', port=5003, debug=False, use_reloader=False)
     except Exception as e:
         print(f"[Error] Flask启动失败: {e}")
         import traceback
