@@ -16,6 +16,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# 创建 tmp 子目录
+for subdir in ['ct', 'image', 'mask', 'draw']:
+    tmp_path = os.path.join(BASE_DIR, 'tmp', subdir)
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+
 ALLOWED_EXTENSIONS = set(['dcm'])
 app = Flask(__name__)
 app.secret_key = 'secret!'
