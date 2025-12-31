@@ -1,10 +1,12 @@
-import request from '../utils/request'
+import request from './request'
 
-export function uploadDcm(data) {
+export function uploadDcm(file) {
+    const formData = new FormData()
+    formData.append('file', file)
     return request({
-        url: '/api/upload',
+        url: '/upload',
         method: 'post',
-        data,
+        data: formData,
         headers: {
             'Content-Type': 'multipart/form-data'
         }

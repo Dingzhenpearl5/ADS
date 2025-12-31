@@ -62,7 +62,7 @@
 
     <!-- Diagnosis Progress Dialog -->
     <el-dialog 
-      v-model="dialogTableVisible" 
+      v-model="isProcessing" 
       title="AI 诊断分析中" 
       :close-on-click-modal="false"
       :show-close="false"
@@ -94,26 +94,30 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElNotification } from 'element-plus'
-import { io } from 'socket.io-client'
+import { ElMessage } from 'element-plus'
 import { Operation, VideoPlay, Loading, Check } from '@element-plus/icons-vue'
 
-import PatientInfo from './PatientInfo.vue'
-import ImageWorkspace from './ImageWorkspace.vue'
-import FeatureAnalysis from './FeatureAnalysis.vue'
+import PatientInfo from '../../patient/components/PatientInfo.vue'
+import ImageWorkspace from '../components/ImageWorkspace.vue'
+import FeatureAnalysis from '../components/FeatureAnalysis.vue'
 
-import { getPatientInfo } from '../api/patient'
-import { startTask, downloadTemplate, uploadDcm } from '../api/task'
+import { getPatientInfo } from '../../../services/patient'
+import { startTask, downloadTemplate, uploadDcm } from '../../../services/task'
+import { useAiPrediction } from '../../../composables/useAiPrediction'
 
 const route = useRoute()
+const { 
+  percentage, 
+  progressStatus, 
+  isProcessing, 
+  resultData, 
+  initSocket 
+} = useAiPrediction()
 
 // State
 const loading = ref(false)
-const dialogTableVisible = ref(false)
-const percentage = ref(0)
-const progressStatus = ref('正在准备诊断任务...')
 const url1 = ref('')
 const url2 = ref('')
 const srcList = ref([])
@@ -121,6 +125,18 @@ const srcList1 = ref([])
 const featureList = ref([])
 const areaData = ref(0)
 const perimeterData = ref(0)
+
+// 监听 AI 预测结果
+watch(resultData, (newData) => {
+  if (newData.url2) {
+    url2.value = newData.url2
+    srcList1.value = [newData.url2]
+    featureList.value = newData.featureList
+    areaData.value = newData.area
+    perimeterData.value = newData.perimeter
+    loading.value = false
+  }
+}, { deep: true })
 
 const patient = ref({
   id: '',
@@ -149,50 +165,6 @@ const displayPatient = computed(() => {
     '部位': patient.value.part || '未填写'
   }
 })
-
-let socket = null
-let progressTimer = null
-
-// Socket Initialization
-const initSocket = () => {
-  const socketUrl = process.env.VUE_APP_SOCKET_URL || 'http://127.0.0.1:5003'
-  socket = io(socketUrl)
-
-  socket.on('connect', () => {
-    console.log('[Socket] Connected')
-  })
-
-  socket.on('progress', (data) => {
-    percentage.value = data.percentage
-    progressStatus.value = data.message
-    
-    if (data.percentage === 100) {
-      setTimeout(() => {
-        dialogTableVisible.value = false
-        ElNotification({
-          title: '诊断完成',
-          message: 'AI 辅助诊断已成功完成，请查看结果。',
-          type: 'success',
-        })
-      }, 1000)
-    }
-  })
-
-  socket.on('result', (data) => {
-    url2.value = data.url2
-    srcList1.value = [data.url2]
-    featureList.value = data.feature_list
-    areaData.value = data.area
-    perimeterData.value = data.perimeter
-    loading.value = false
-  })
-
-  socket.on('error', (err) => {
-    ElMessage.error('诊断过程出错: ' + err)
-    loading.value = false
-    dialogTableVisible.value = false
-  })
-}
 
 // Methods
 const fetchPatientData = async (id) => {
@@ -226,8 +198,8 @@ const handleFile = async (file) => {
   loading.value = true
   try {
     const res = await uploadDcm(file)
-    url1.value = res.data.url1
-    srcList.value = [res.data.url1]
+    url1.value = res.image_url
+    srcList.value = [res.image_url]
     url2.value = ''
     srcList1.value = []
     featureList.value = []
@@ -246,17 +218,12 @@ const handleStartDiagnosis = async () => {
   }
   
   loading.value = true
-  dialogTableVisible.value = true
-  percentage.value = 0
-  progressStatus.value = '正在初始化诊断引擎...'
-
   try {
     await startTask({ imageUrl: url1.value })
   } catch (e) {
     console.error(e)
     ElMessage.error('启动诊断任务失败')
     loading.value = false
-    dialogTableVisible.value = false
   }
 }
 
@@ -274,11 +241,6 @@ onMounted(() => {
   initSocket()
   const id = route.query.id || '10007'
   fetchPatientData(id)
-})
-
-onUnmounted(() => {
-  if (socket) socket.disconnect()
-  if (progressTimer) clearInterval(progressTimer)
 })
 
 // Expose methods for Home.vue

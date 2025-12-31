@@ -62,9 +62,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Monitor } from '@element-plus/icons-vue'
-import { login, checkAuth } from '../api/auth'
+import { useAuthStore } from '../../../stores/authStore'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const loginFormRef = ref(null)
 const loading = ref(false)
 const rememberMe = ref(false)
@@ -86,17 +87,10 @@ const rules = {
 }
 
 const checkLoginStatus = async () => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    try {
-      const res = await checkAuth()
-      if (res.status === 1) {
-        console.log('Already logged in, redirecting to /home')
-        router.push('/home')
-      }
-    } catch (error) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
+  if (authStore.isLoggedIn) {
+    const isValid = await authStore.checkAuth()
+    if (isValid) {
+      router.push('/home')
     }
   }
 }
@@ -108,36 +102,21 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        console.log('Attempting login for:', loginForm.username)
-        const res = await login({
+        await authStore.login({
           username: loginForm.username,
           password: loginForm.password
         })
         
-        console.log('Login response:', res)
-        
-        if (res.status === 1) {
-          const { token } = res.data
-          const user = res.data
-          
-          localStorage.setItem('token', token)
-          localStorage.setItem('userInfo', JSON.stringify(user))
-          
-          if (rememberMe.value) {
-            localStorage.setItem('rememberedUsername', loginForm.username)
-          } else {
-            localStorage.removeItem('rememberedUsername')
-          }
-          
-          ElMessage.success(`欢迎回来，${user.name || user.username || '用户'}！`)
-          console.log('Login successful, pushing to /home')
-          router.push('/home')
+        if (rememberMe.value) {
+          localStorage.setItem('rememberedUsername', loginForm.username)
         } else {
-          ElMessage.error(res.error || '登录失败')
+          localStorage.removeItem('rememberedUsername')
         }
+        
+        ElMessage.success(`欢迎回来，${authStore.userInfo.name || authStore.userInfo.username || '用户'}！`)
+        router.push('/home')
       } catch (error) {
-        console.error('登录请求失败:', error)
-        ElMessage.error('登录请求失败，请检查网络或后端服务')
+        ElMessage.error(error.message || '登录失败')
       } finally {
         loading.value = false
       }

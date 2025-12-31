@@ -49,8 +49,8 @@
             <div class="user-info-wrapper">
               <el-avatar :size="36" :icon="UserFilled" class="user-avatar" />
               <div class="user-details">
-                <span class="username">{{ userInfo.name || '用户' }}</span>
-                <span class="role">{{ userInfo.role === 'admin' ? '管理员' : '医生' }}</span>
+                <span class="username">{{ authStore.userInfo.name || '用户' }}</span>
+                <span class="role">{{ authStore.userInfo.role === 'admin' ? '管理员' : '医生' }}</span>
               </div>
               <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </div>
@@ -82,7 +82,7 @@ import {
   Upload,
   Monitor
 } from '@element-plus/icons-vue'
-import { logout } from '../api/auth'
+import { useAuthStore } from '../stores/authStore'
 
 defineProps({
   msg: {
@@ -94,8 +94,8 @@ defineProps({
 const emit = defineEmits(['download-template', 'upload-file'])
 
 const router = useRouter()
+const authStore = useAuthStore()
 const activeIndex = ref('1')
-const userInfo = ref({})
 const fileInput = ref(null)
 
 const handleSelect = (key) => {
@@ -122,28 +122,17 @@ const handleCommand = (command) => {
 
 const handleLogout = async () => {
   try {
-    await logout()
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
+    await authStore.logout()
     ElMessage.success('已退出登录')
     router.push('/login')
   } catch (e) {
     console.error('登出失败', e)
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
     router.push('/login')
   }
 }
 
 onMounted(() => {
-  const userInfoStr = localStorage.getItem('userInfo')
-  if (userInfoStr) {
-    try {
-      userInfo.value = JSON.parse(userInfoStr)
-    } catch (e) {
-      console.error('解析用户信息失败', e)
-    }
-  }
+  authStore.checkAuth()
 })
 </script>
 

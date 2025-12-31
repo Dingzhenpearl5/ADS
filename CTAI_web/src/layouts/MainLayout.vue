@@ -19,7 +19,7 @@
 import { ref } from 'vue'
 import Header from './Header.vue'
 import Footer from './Footer.vue'
-import Content from './Content.vue'
+import Content from '../modules/imaging/views/DiagnosisView.vue'
 
 const content = ref(null)
 

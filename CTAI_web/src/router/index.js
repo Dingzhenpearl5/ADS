@@ -8,12 +8,12 @@ const routes = [
     },
     { 
         path: '/login', 
-        component: () => import('../components/Login.vue'), 
+        component: () => import('../modules/auth/views/Login.vue'), 
         meta: { title: "登录 - 肿瘤辅助诊断系统", requiresAuth: false } 
     },
     { 
         path: '/home', 
-        component: () => import('../components/Home.vue'), 
+        component: () => import('../layouts/MainLayout.vue'), 
         meta: { title: "首页 - 肿瘤辅助诊断系统", requiresAuth: true } 
     },
     { 
