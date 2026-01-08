@@ -75,8 +75,18 @@ class Token(db.Model):
     token = db.Column(db.String(100), unique=True, nullable=False)
     username = db.Column(db.String(50), db.ForeignKey('users.username'), nullable=False)
     login_time = db.Column(db.DateTime, default=datetime.datetime.now)
+    expire_time = db.Column(db.DateTime, nullable=False)  # Token过期时间
     
     user = db.relationship('User', backref=db.backref('tokens', lazy=True))
+
+# 登录失败记录模型
+class LoginAttempt(db.Model):
+    __tablename__ = 'login_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=False)
+    attempt_time = db.Column(db.DateTime, default=datetime.datetime.now)
+    success = db.Column(db.Boolean, default=False)
+    ip_address = db.Column(db.String(50))
 
 # 病人模型
 class Patient(db.Model):
@@ -274,6 +284,39 @@ def health_check():
 
 
 # ==================== 用户认证接口 ====================
+from functools import wraps
+
+def token_required(f):
+    """验证Token的装饰器"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # OPTIONS 请求直接通过（预检请求）
+        if request.method == 'OPTIONS':
+            return jsonify({'status': 1})
+        
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+        
+        if not token:
+            return jsonify({'status': 0, 'error': '缺少认证Token'}), 401
+        
+        # 验证Token是否存在且未过期
+        token_record = Token.query.filter_by(token=token).first()
+        if not token_record:
+            return jsonify({'status': 0, 'error': 'Token无效'}), 401
+        
+        # 检查Token是否过期
+        if datetime.datetime.now() > token_record.expire_time:
+            db.session.delete(token_record)
+            db.session.commit()
+            return jsonify({'status': 0, 'error': 'Token已过期,请重新登录'}), 401
+        
+        # 将用户信息传递给路由函数
+        request.current_user = token_record.user
+        return f(*args, **kwargs)
+    
+    return decorated_function
 
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 def login():
@@ -285,29 +328,52 @@ def login():
         data = request.get_json()
         username = data.get('username', '')
         password = data.get('password', '')
+        ip_address = request.remote_addr
         
-        print(f"[Login] 用户 {username} 尝试登录")
+        print(f"[Login] 用户 {username} 从 {ip_address} 尝试登录")
         
         if not username or not password:
             return jsonify({'status': 0, 'error': '用户名和密码不能为空'})
         
+        # 检查登录失败次数(15分钟内)
+        fifteen_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=15)
+        failed_attempts = LoginAttempt.query.filter(
+            LoginAttempt.username == username,
+            LoginAttempt.success == False,
+            LoginAttempt.attempt_time > fifteen_minutes_ago
+        ).count()
+        
+        if failed_attempts >= 5:
+            return jsonify({'status': 0, 'error': '登录失败次数过多,请15分钟后再试'})
+        
         # 验证用户
         user = User.query.filter_by(username=username).first()
         if not user:
-            return jsonify({'status': 0, 'error': '用户名不存在'})
+            # 记录失败
+            db.session.add(LoginAttempt(username=username, success=False, ip_address=ip_address))
+            db.session.commit()
+            return jsonify({'status': 0, 'error': '用户名或密码错误'})
         
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         if user.password != password_hash:
-            return jsonify({'status': 0, 'error': '密码错误'})
+            # 记录失败
+            db.session.add(LoginAttempt(username=username, success=False, ip_address=ip_address))
+            db.session.commit()
+            return jsonify({'status': 0, 'error': '用户名或密码错误'})
         
-        # 生成token并存入数据库
+        # 生成token并存入数据库(24小时有效期)
         token = str(uuid.uuid4())
+        expire_time = datetime.datetime.now() + datetime.timedelta(hours=24)
         new_token = Token(
             token=token,
             username=user.username,
-            login_time=datetime.datetime.now()
+            login_time=datetime.datetime.now(),
+            expire_time=expire_time
         )
         db.session.add(new_token)
+        
+        # 记录成功登录
+        db.session.add(LoginAttempt(username=username, success=True, ip_address=ip_address))
         db.session.commit()
         
         print(f"[Login] 用户 {username} 登录成功")
@@ -319,7 +385,8 @@ def login():
                 'token': token,
                 'username': user.username,
                 'name': user.name,
-                'role': user.role
+                'role': user.role,
+                'expire_time': expire_time.strftime('%Y-%m-%d %H:%M:%S')
             }
         })
         
@@ -328,7 +395,78 @@ def login():
         return jsonify({'status': 0, 'error': str(e)})
 
 
+@app.route('/api/refresh-token', methods=['POST', 'OPTIONS'])
+@token_required
+def refresh_token():
+    """刷新Token接口"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        old_token = request.headers.get('Authorization')
+        if old_token and old_token.startswith('Bearer '):
+            old_token = old_token[7:]
+        
+        # 删除旧token
+        old_token_record = Token.query.filter_by(token=old_token).first()
+        if old_token_record:
+            username = old_token_record.username
+            db.session.delete(old_token_record)
+            
+            # 生成新token(24小时有效期)
+            new_token = str(uuid.uuid4())
+            expire_time = datetime.datetime.now() + datetime.timedelta(hours=24)
+            token_record = Token(
+                token=new_token,
+                username=username,
+                login_time=datetime.datetime.now(),
+                expire_time=expire_time
+            )
+            db.session.add(token_record)
+            db.session.commit()
+            
+            print(f"[Token] 用户 {username} 刷新了Token")
+            
+            return jsonify({
+                'status': 1,
+                'message': 'Token刷新成功',
+                'data': {
+                    'token': new_token,
+                    'expire_time': expire_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+        
+        return jsonify({'status': 0, 'error': 'Token不存在'})
+        
+    except Exception as e:
+        print(f"[Token] 刷新失败: {e}")
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/check-auth', methods=['GET', 'OPTIONS'])
+@token_required
+def check_auth():
+    """检查认证状态"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = request.current_user
+        return jsonify({
+            'status': 1,
+            'data': {
+                'username': user.username,
+                'name': user.name,
+                'role': user.role
+            }
+        })
+    except Exception as e:
+        print(f"[Auth] 验证失败: {e}")
+        return jsonify({'status': 0, 'error': str(e)})
+
+
 @app.route('/api/logout', methods=['POST', 'OPTIONS'])
+@token_required
 def logout():
     """用户登出接口"""
     if request.method == 'OPTIONS':
@@ -351,32 +489,6 @@ def logout():
         
     except Exception as e:
         return jsonify({'status': 0, 'error': str(e)})
-
-
-@app.route('/api/check-auth', methods=['GET', 'OPTIONS'])
-def check_auth():
-    """检查登录状态"""
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 1})
-    
-    token = request.headers.get('Authorization')
-    if token and token.startswith('Bearer '):
-        token = token[7:]
-    
-    if token:
-        token_record = Token.query.filter_by(token=token).first()
-        if token_record:
-            user = token_record.user
-            return jsonify({
-                'status': 1,
-                'data': {
-                    'username': user.username,
-                    'name': user.name,
-                    'role': user.role
-                }
-            })
-    
-    return jsonify({'status': 0, 'error': '未登录'})
 
 
 @app.route('/api/patient', methods=['GET', 'OPTIONS'])

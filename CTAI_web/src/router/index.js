@@ -54,7 +54,12 @@ router.beforeEach((to, from, next) => {
     // 检查是否需要登录
     const token = localStorage.getItem('token');
     
-    if (to.meta.requiresAuth && !token) {
+    // 检查当前路由或其父路由是否需要认证
+    // 只要有一个父路由设置了 requiresAuth: true，就需要认证
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth === true)
+    
+    if (requiresAuth && !token) {
+        console.log('[Router] 需要认证但未登录，跳转到登录页')
         ElMessage.warning('请先登录');
         next('/login');
     } else if (to.path === '/login' && token) {

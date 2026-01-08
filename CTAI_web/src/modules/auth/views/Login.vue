@@ -113,13 +113,29 @@ const handleLogin = async () => {
           localStorage.removeItem('rememberedUsername')
         }
         
-        ElMessage.success(`欢迎回来，${authStore.userInfo.name || authStore.userInfo.username || '用户'}！`)
-        router.push('/home')
+        ElMessage.success({
+          message: `欢迎回来，${authStore.userInfo.name || authStore.userInfo.username || '用户'}！`,
+          duration: 2000
+        })
+        
+        // 延迟跳转，让用户看到成功消息
+        setTimeout(() => {
+          router.push('/home')
+        }, 500)
       } catch (error) {
-        ElMessage.error(error.message || '登录失败')
+        // 优化错误提示
+        const errorMsg = error.response?.data?.error || error.message || '登录失败，请稍后重试'
+        ElMessage.error({
+          message: errorMsg,
+          duration: 3000,
+          showClose: true
+        })
+        console.error('[Login] 登录错误:', error)
       } finally {
         loading.value = false
       }
+    } else {
+      ElMessage.warning('请正确填写登录信息')
     }
   })
 }

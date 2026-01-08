@@ -8,6 +8,13 @@ export function login(data) {
     })
 }
 
+export function refreshToken() {
+    return request({
+        url: '/api/refresh-token',
+        method: 'post'
+    })
+}
+
 export function checkAuth() {
     return request({
         url: '/api/check-auth',
