@@ -100,7 +100,7 @@ const bodyParts = ref([
     name: '直肠',
     description: '直肠癌症智能检测与分析',
     icon: Medal,
-    color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'linear-gradient(135deg, #409eff 0%, #1890ff 100%)',
     available: true,
     caseCount: 1247,
     accuracy: 94.5,
@@ -112,7 +112,7 @@ const bodyParts = ref([
     name: '肺部',
     description: '肺部结节检测与良恶性判断',
     icon: FirstAidKit,
-    color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    color: 'linear-gradient(135deg, #66b3ff 0%, #3399ff 100%)',
     available: false,
     caseCount: 856,
     accuracy: 92.3,
@@ -124,7 +124,7 @@ const bodyParts = ref([
     name: '肝脏',
     description: '肝脏肿瘤检测与分级诊断',
     icon: Orange,
-    color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    color: 'linear-gradient(135deg, #5cadff 0%, #0080ff 100%)',
     available: false,
     caseCount: 624,
     accuracy: 91.8,
@@ -136,7 +136,7 @@ const bodyParts = ref([
     name: '脑部',
     description: '脑部肿瘤检测与区域定位',
     icon: Apple,
-    color: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+    color: 'linear-gradient(135deg, #3d8ef7 0%, #1565c0 100%)',
     available: false,
     caseCount: 432,
     accuracy: 93.2,
@@ -148,7 +148,7 @@ const bodyParts = ref([
     name: '乳腺',
     description: '乳腺癌症筛查与风险评估',
     icon: Coffee,
-    color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+    color: 'linear-gradient(135deg, #7db3e8 0%, #4a90e2 100%)',
     available: false,
     caseCount: 1089,
     accuracy: 95.1,
@@ -160,7 +160,7 @@ const bodyParts = ref([
     name: '胃部',
     description: '胃部肿瘤检测与病变分析',
     icon: IceCream,
-    color: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+    color: 'linear-gradient(135deg, #91c5e8 0%, #5ea3d6 100%)',
     available: false,
     caseCount: 534,
     accuracy: 90.7,
@@ -192,7 +192,7 @@ const handlePartClick = (part) => {
 .workspace-home {
   padding: 20px;
   min-height: calc(100vh - 70px);
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: linear-gradient(135deg, #f5f8fc 0%, #e3f2fd 100%);
 }
 
 /* 欢迎区域 */
@@ -210,7 +210,7 @@ const handlePartClick = (part) => {
   font-weight: 700;
   color: #303133;
   margin: 0 0 12px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #409eff 0%, #1890ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

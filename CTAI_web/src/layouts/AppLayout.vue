@@ -54,10 +54,10 @@ const handleUploadFile = (file) => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f0f2f5;
+  background-color: #f5f8fc;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(64, 158, 255, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(103, 194, 58, 0.05) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(64, 158, 255, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(24, 144, 255, 0.06) 0px, transparent 50%);
 }
 
 .main-content {

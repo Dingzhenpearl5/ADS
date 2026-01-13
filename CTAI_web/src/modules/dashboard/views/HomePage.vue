@@ -23,7 +23,7 @@
     <div class="stats-grid">
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+          <div class="stat-icon" style="background: linear-gradient(135deg, #409eff 0%, #1890ff 100%)">
             <el-icon :size="32"><TrendCharts /></el-icon>
           </div>
           <div class="stat-info">
@@ -35,7 +35,7 @@
 
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
+          <div class="stat-icon" style="background: linear-gradient(135deg, #66b3ff 0%, #3399ff 100%)">
             <el-icon :size="32"><Calendar /></el-icon>
           </div>
           <div class="stat-info">
@@ -47,7 +47,7 @@
 
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%)">
+          <div class="stat-icon" style="background: linear-gradient(135deg, #5cadff 0%, #0080ff 100%)">
             <el-icon :size="32"><CircleCheck /></el-icon>
           </div>
           <div class="stat-info">
@@ -59,7 +59,7 @@
 
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
-          <div class="stat-icon" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%)">
+          <div class="stat-icon" style="background: linear-gradient(135deg, #3d8ef7 0%, #1565c0 100%)">
             <el-icon :size="32"><Clock /></el-icon>
           </div>
           <div class="stat-info">
@@ -207,28 +207,28 @@
 
           <div class="shortcuts-grid">
             <div class="shortcut-item" @click="goToWorkspace">
-              <div class="shortcut-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+              <div class="shortcut-icon" style="background: linear-gradient(135deg, #409eff 0%, #1890ff 100%)">
                 <el-icon :size="28"><VideoPlay /></el-icon>
               </div>
               <span>开始诊断</span>
             </div>
 
             <div class="shortcut-item" @click="goToHistory">
-              <div class="shortcut-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
+              <div class="shortcut-icon" style="background: linear-gradient(135deg, #66b3ff 0%, #3399ff 100%)">
                 <el-icon :size="28"><Document /></el-icon>
               </div>
               <span>历史记录</span>
             </div>
 
             <div class="shortcut-item" @click="goToStatistics">
-              <div class="shortcut-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%)">
+              <div class="shortcut-icon" style="background: linear-gradient(135deg, #5cadff 0%, #0080ff 100%)">
                 <el-icon :size="28"><DataAnalysis /></el-icon>
               </div>
               <span>统计分析</span>
             </div>
 
             <div class="shortcut-item" @click="openHelp">
-              <div class="shortcut-icon" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%)">
+              <div class="shortcut-icon" style="background: linear-gradient(135deg, #3d8ef7 0%, #1565c0 100%)">
                 <el-icon :size="28"><QuestionFilled /></el-icon>
               </div>
               <span>使用帮助</span>
@@ -369,16 +369,17 @@ onMounted(() => {
 .home-page {
   padding: 20px;
   min-height: calc(100vh - 70px);
+  background: linear-gradient(135deg, #f5f8fc 0%, #e3f2fd 100%);
 }
 
 /* 欢迎横幅 */
 .welcome-banner {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #409eff 0%, #1890ff 100%);
   border-radius: 16px;
   padding: 40px;
   margin-bottom: 24px;
   color: #fff;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 32px rgba(64, 158, 255, 0.3);
 }
 
 .banner-content {
@@ -556,7 +557,7 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #409eff 0%, #1890ff 100%);
   color: #fff;
   display: flex;
   align-items: center;
