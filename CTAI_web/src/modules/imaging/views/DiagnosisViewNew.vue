@@ -1,12 +1,19 @@
 <template>
   <div class="diagnosis-container">
-    <!-- 顶部流程指示 -->
-    <div class="workflow-steps">
-      <el-steps :active="currentStep" finish-status="success" align-center>
-        <el-step title="上传影像" :icon="Upload" />
-        <el-step title="AI分析" :icon="Cpu" />
-        <el-step title="查看结果" :icon="DataAnalysis" />
-      </el-steps>
+    <!-- 顶部面包屑导航 + 流程指示 -->
+    <div class="top-section">
+      <el-breadcrumb separator="/" class="breadcrumb">
+        <el-breadcrumb-item :to="{ path: '/home' }">工作台</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ partName }}诊断</el-breadcrumb-item>
+      </el-breadcrumb>
+      
+      <div class="workflow-steps">
+        <el-steps :active="currentStep" finish-status="success" align-center>
+          <el-step title="上传影像" :icon="Upload" />
+          <el-step title="AI分析" :icon="Cpu" />
+          <el-step title="查看结果" :icon="DataAnalysis" />
+        </el-steps>
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -311,6 +318,20 @@ const {
   initSocket 
 } = useAiPrediction()
 
+// 部位映射
+const partMap = {
+  rectum: '直肠',
+  lung: '肺部',
+  liver: '肝脏',
+  brain: '脑部',
+  breast: '乳腺',
+  stomach: '胃部'
+}
+
+// 当前诊断部位
+const currentPart = computed(() => route.params.part || 'rectum')
+const partName = computed(() => partMap[currentPart.value] || '未知部位')
+
 // Refs
 const uploadRef = ref(null)
 const reuploadInput = ref(null)
@@ -610,10 +631,20 @@ const handleGlobalUpload = (event) => {
 }
 
 onMounted(() => {
+  // 检查部位是否支持
+  if (!partMap[currentPart.value]) {
+    ElMessage.warning(`不支持的诊断部位: ${currentPart.value}`)
+  }
+  
   initSocket()
   const id = route.query.id || '20190001'
   searchId.value = id
   fetchPatientData(id)
+  
+  // 根据部位设置患者检查部位
+  if (patient.value.part === '' || patient.value.part === '-') {
+    patient.value.part = partName.value
+  }
   
   window.addEventListener('resize', handleResize)
   window.addEventListener('upload-ct-file', handleGlobalUpload)
@@ -633,12 +664,33 @@ onUnmounted(() => {
   min-height: calc(100vh - 70px);
 }
 
+/* 顶部区域 */
+.top-section {
+  margin-bottom: 20px;
+}
+
+.breadcrumb {
+  background: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.breadcrumb :deep(.el-breadcrumb__inner) {
+  color: #606266;
+  font-weight: 500;
+}
+
+.breadcrumb :deep(.el-breadcrumb__inner:hover) {
+  color: #409eff;
+}
+
 /* 流程步骤 */
 .workflow-steps {
   background: #fff;
   padding: 20px 40px;
   border-radius: 12px;
-  margin-bottom: 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
