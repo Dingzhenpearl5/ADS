@@ -18,6 +18,11 @@ const routes = [
         children: [
             { 
                 path: 'home', 
+                component: () => import('../modules/dashboard/views/HomePage.vue'), 
+                meta: { title: "首页 - 肿瘤辅助诊断系统" } 
+            },
+            { 
+                path: 'workspace', 
                 component: () => import('../modules/imaging/views/WorkspaceHome.vue'), 
                 meta: { title: "工作台 - 肿瘤辅助诊断系统" } 
             },

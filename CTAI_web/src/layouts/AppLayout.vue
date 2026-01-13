@@ -40,9 +40,9 @@ const handleDownloadTemplate = async () => {
 }
 
 const handleUploadFile = (file) => {
-  // 如果不在工作台页面，先跳转
-  if (router.currentRoute.value.path !== '/home') {
-    router.push('/home')
+  // 如果不在诊断页面，先跳转到工作台
+  if (!router.currentRoute.value.path.startsWith('/diagnosis')) {
+    router.push('/workspace')
   }
   // 触发全局事件，让DiagnosisView处理
   window.dispatchEvent(new CustomEvent('upload-ct-file', { detail: file }))

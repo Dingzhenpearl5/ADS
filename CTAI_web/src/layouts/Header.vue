@@ -17,9 +17,10 @@
           class="custom-menu"
           @select="handleSelect"
         >
-          <el-menu-item index="1">工作台</el-menu-item>
-          <el-menu-item index="2">历史记录</el-menu-item>
-          <el-menu-item index="3">统计分析</el-menu-item>
+          <el-menu-item index="1">首页</el-menu-item>
+          <el-menu-item index="2">工作台</el-menu-item>
+          <el-menu-item index="3">历史记录</el-menu-item>
+          <el-menu-item index="4">统计分析</el-menu-item>
         </el-menu>
       </nav>
 
@@ -101,13 +102,21 @@ const fileInput = ref(null)
 // 路由与菜单索引的映射
 const routeMap = {
   '1': '/home',
-  '2': '/history',
-  '3': '/statistics'
+  '2': '/workspace',
+  '3': '/history',
+  '4': '/statistics'
 }
 
 // 根据当前路由设置激活菜单
 const updateActiveIndex = () => {
   const path = router.currentRoute.value.path
+  
+  // 特殊处理：诊断页面时高亮工作台
+  if (path.startsWith('/diagnosis')) {
+    activeIndex.value = '2'
+    return
+  }
+  
   for (const [key, value] of Object.entries(routeMap)) {
     if (path === value) {
       activeIndex.value = key
@@ -156,6 +165,11 @@ const handleLogout = async () => {
 onMounted(() => {
   authStore.checkAuth()
   updateActiveIndex()
+  
+  // 监听路由变化
+  router.afterEach(() => {
+    updateActiveIndex()
+  })
 })
 </script>
 
