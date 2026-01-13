@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 print("=" * 60)
-print("CTAI 数据库更新工具")
+print("智医AI 数据库更新工具")
 print("=" * 60)
 
 try:

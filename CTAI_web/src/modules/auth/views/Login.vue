@@ -52,7 +52,7 @@
     </div>
     
     <div class="copyright">
-      <p>© 2023 肿瘤辅助诊断系统 | CTAI System</p>
+      <p>© 2023 肿瘤辅助诊断系统 | 智医AI</p>
     </div>
   </div>
 </template>

@@ -1,9 +1,9 @@
 <template>
   <div class="workspace-home">
     <div class="welcome-section">
-      <h1 class="main-title">肿瘤辅助诊断系统</h1>
-      <p class="subtitle">AI-Powered Tumor Diagnosis System</p>
-      <p class="description">选择诊断部位开始智能辅助诊断</p>
+      <h1 class="main-title">直肠肿瘤辅助诊断系统</h1>
+      <p class="subtitle">Transformer + UNet Fusion Architecture</p>
+      <p class="description">基于深度学习融合模型的智能诊断平台</p>
     </div>
 
     <div class="body-parts-grid">
@@ -98,7 +98,7 @@ const bodyParts = ref([
   {
     id: 'rectum',
     name: '直肠',
-    description: '直肠癌症智能检测与分析',
+    description: '基于Transformer+UNet的直肠肿瘤精准诊断',
     icon: Medal,
     color: 'linear-gradient(135deg, #409eff 0%, #1890ff 100%)',
     available: true,
