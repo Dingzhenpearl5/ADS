@@ -5,8 +5,8 @@
         <div class="logo-container">
           <el-icon class="logo-icon" :size="40" color="#409EFF"><Monitor /></el-icon>
         </div>
-        <h1 class="system-title">肿瘤辅助诊断系统</h1>
-        <p class="system-subtitle">Tumor Aided Diagnosis System</p>
+        <h1 class="system-title">直肠肿瘤辅助诊断系统</h1>
+        <p class="system-subtitle">Rectal Tumor Aided Diagnosis System</p>
       </div>
       
       <el-card class="login-card" shadow="hover">
@@ -52,7 +52,7 @@
     </div>
     
     <div class="copyright">
-      <p>© 2023 肿瘤辅助诊断系统 | 智医AI</p>
+      <p>© 2023 直肠肿瘤辅助诊断系统</p>
     </div>
   </div>
 </template>

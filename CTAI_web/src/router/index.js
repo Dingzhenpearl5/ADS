@@ -9,7 +9,7 @@ const routes = [
     { 
         path: '/login', 
         component: () => import('../modules/auth/views/Login.vue'), 
-        meta: { title: "登录 - 肿瘤辅助诊断系统", requiresAuth: false } 
+        meta: { title: "登录 - 直肠肿瘤辅助诊断系统", requiresAuth: false } 
     },
     {
         path: '/',
@@ -19,27 +19,27 @@ const routes = [
             { 
                 path: 'home', 
                 component: () => import('../modules/dashboard/views/HomePage.vue'), 
-                meta: { title: "首页 - 肿瘤辅助诊断系统" } 
+                meta: { title: "首页 - 直肠肿瘤辅助诊断系统" } 
             },
             { 
                 path: 'workspace', 
                 component: () => import('../modules/imaging/views/WorkspaceHome.vue'), 
-                meta: { title: "工作台 - 肿瘤辅助诊断系统" } 
+                meta: { title: "工作台 - 直肠肿瘤辅助诊断系统" } 
             },
             { 
                 path: 'diagnosis/:part', 
                 component: () => import('../modules/imaging/views/DiagnosisViewNew.vue'), 
-                meta: { title: "诊断分析 - 肿瘤辅助诊断系统" } 
+                meta: { title: "诊断分析 - 直肠肿瘤辅助诊断系统" } 
             },
             {
                 path: 'history',
                 component: () => import('../modules/report/views/HistoryView.vue'),
-                meta: { title: "历史记录 - 肿瘤辅助诊断系统" }
+                meta: { title: "历史记录 - 直肠肿瘤辅助诊断系统" }
             },
             {
                 path: 'statistics',
                 component: () => import('../modules/report/views/StatisticsView.vue'),
-                meta: { title: "统计分析 - 肿瘤辅助诊断系统" }
+                meta: { title: "统计分析 - 直肠肿瘤辅助诊断系统" }
             }
         ]
     },

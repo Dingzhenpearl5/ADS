@@ -88,7 +88,7 @@ import { useAuthStore } from '../stores/authStore'
 defineProps({
   msg: {
     type: String,
-    default: '肿瘤辅助诊断系统'
+    default: '直肠肿瘤辅助诊断系统'
   }
 })
 

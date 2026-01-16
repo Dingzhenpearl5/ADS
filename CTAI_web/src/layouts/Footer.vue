@@ -11,7 +11,7 @@
         <el-link :underline="false">联系我们</el-link>
       </div>
       <div class="copyright">
-        <p>&copy; {{ currentYear }} 肿瘤辅助诊断系统. All Rights Reserved.</p>
+        <p>&copy; {{ currentYear }} 直肠肿瘤辅助诊断系统. All Rights Reserved.</p>
         <p class="tech-stack">Powered by Vue 3 & Element Plus & AI Engine</p>
       </div>
     </div>

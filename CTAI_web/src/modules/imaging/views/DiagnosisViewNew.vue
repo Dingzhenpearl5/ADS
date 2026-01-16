@@ -44,12 +44,19 @@
                 </el-input>
               </div>
 
-              <el-descriptions :column="1" border size="small" class="patient-desc">
-                <el-descriptions-item label="姓名">{{ patient.name || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="性别">{{ patient.gender || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="年龄">{{ patient.age || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="电话">{{ patient.phone || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="检查部位">{{ patient.part || '-' }}</el-descriptions-item>
+              <div v-if="!hasPatientData" class="empty-patient-info">
+                <el-empty 
+                  description="请输入患者ID查询信息" 
+                  :image-size="80"
+                />
+              </div>
+
+              <el-descriptions v-else :column="1" border size="small" class="patient-desc">
+                <el-descriptions-item label="姓名">{{ patient.name }}</el-descriptions-item>
+                <el-descriptions-item label="性别">{{ patient.gender }}</el-descriptions-item>
+                <el-descriptions-item label="年龄">{{ patient.age }}</el-descriptions-item>
+                <el-descriptions-item label="电话">{{ patient.phone }}</el-descriptions-item>
+                <el-descriptions-item label="检查部位">{{ patient.part }}</el-descriptions-item>
               </el-descriptions>
             </el-card>
 
@@ -365,6 +372,11 @@ const patient = ref({
   part: ''
 })
 
+// 判断是否有患者数据
+const hasPatientData = computed(() => {
+  return patient.value.name || patient.value.id
+})
+
 // 流程步骤
 const currentStep = computed(() => {
   if (url2.value) return 3
@@ -411,7 +423,12 @@ watch(activeTab, (newTab) => {
 
 // Methods
 const fetchPatientData = async (id) => {
-  if (!id) return
+  // 空检索提示
+  if (!id || id.trim() === '') {
+    ElMessage.warning('请输入患者ID')
+    return
+  }
+  
   loading.value = true
   try {
     const res = await getPatientInfo(id)
@@ -423,15 +440,33 @@ const fetchPatientData = async (id) => {
         gender: d['性别'] || '',
         age: d['年龄'] || '',
         phone: d['电话'] || '',
-        part: d['部位'] || ''
+        part: d['部位'] || partName.value
       }
       ElMessage.success('患者信息获取成功')
     } else {
-      ElMessage.warning(res.error || '未找到该患者信息')
+      // 未找到提示
+      patient.value = {
+        id: '',
+        name: '',
+        gender: '',
+        age: '',
+        phone: '',
+        part: ''
+      }
+      ElMessage.warning(`未找到ID为 "${id}" 的患者信息，请检查后重试`)
     }
   } catch (e) {
     console.error(e)
-    ElMessage.error('获取患者信息失败')
+    // 清空患者信息
+    patient.value = {
+      id: '',
+      name: '',
+      gender: '',
+      age: '',
+      phone: '',
+      part: ''
+    }
+    ElMessage.error('获取患者信息失败，请检查网络连接')
   } finally {
     loading.value = false
   }
@@ -637,13 +672,12 @@ onMounted(() => {
   }
   
   initSocket()
-  const id = route.query.id || '20190001'
-  searchId.value = id
-  fetchPatientData(id)
   
-  // 根据部位设置患者检查部位
-  if (patient.value.part === '' || patient.value.part === '-') {
-    patient.value.part = partName.value
+  // 如果 URL 中有患者 ID，则自动查询
+  const id = route.query.id
+  if (id) {
+    searchId.value = id
+    fetchPatientData(id)
   }
   
   window.addEventListener('resize', handleResize)
@@ -721,6 +755,15 @@ onUnmounted(() => {
 
 .search-box {
   margin-bottom: 16px;
+}
+
+.empty-patient-info {
+  padding: 20px 0;
+}
+
+.empty-patient-info :deep(.el-empty__description) {
+  color: #909399;
+  font-size: 13px;
 }
 
 .patient-desc :deep(.el-descriptions__label) {
