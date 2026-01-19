@@ -45,6 +45,11 @@ const routes = [
                 path: 'help',
                 component: () => import('../modules/dashboard/views/HelpView.vue'),
                 meta: { title: "使用帮助 - 直肠肿瘤辅助诊断系统" }
+            },
+            {
+                path: 'settings',
+                component: () => import('../modules/system/views/SettingsView.vue'),
+                meta: { title: "系统设置 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
             }
         ]
     },

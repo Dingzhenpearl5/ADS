@@ -57,8 +57,9 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item :icon="User">个人中心</el-dropdown-item>
-                <el-dropdown-item :icon="Setting">系统设置</el-dropdown-item>
+                <el-dropdown-item :icon="User" command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item :icon="Setting" command="settings" v-if="isAdmin">系统设置</el-dropdown-item>
+                <el-dropdown-item :icon="QuestionFilled" command="help">使用帮助</el-dropdown-item>
                 <el-dropdown-item :icon="SwitchButton" command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -81,7 +82,8 @@ import {
   SwitchButton,
   Download,
   Upload,
-  Monitor
+  Monitor,
+  QuestionFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/authStore'
 
@@ -151,6 +153,12 @@ const handleFileChange = (e) => {
 const handleCommand = (command) => {
   if (command === 'logout') {
     handleLogout()
+  } else if (command === 'settings') {
+    router.push('/settings')
+  } else if (command === 'help') {
+    router.push('/help')
+  } else if (command === 'profile') {
+    ElMessage.info('个人中心功能开发中')
   }
 }
 

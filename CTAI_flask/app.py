@@ -130,6 +130,18 @@ class DiagnosisRecord(db.Model):
     patient = db.relationship('Patient', backref=db.backref('diagnoses', lazy=True))
     doctor = db.relationship('User', backref=db.backref('diagnoses', lazy=True))
 
+# 系统设置模型
+class SystemSetting(db.Model):
+    """系统配置存储"""
+    __tablename__ = 'system_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)  # 设置项的键
+    value = db.Column(db.Text)  # 设置项的值（JSON格式存储复杂值）
+    description = db.Column(db.String(255))  # 设置项说明
+    category = db.Column(db.String(50))  # 分类：analysis/report/system
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    updated_by = db.Column(db.String(50))  # 最后修改人
+
 def init_db():
     """初始化数据库：创建表并添加默认用户"""
     with app.app_context():
@@ -171,6 +183,42 @@ def init_db():
                 )
                 db.session.add(patient)
                 print("[DB] 已创建默认病人信息: 李明")
+
+            # 初始化默认系统设置
+            default_settings = [
+                # 数据分析参数
+                {'key': 'analysis_threshold', 'value': '1000', 'description': '面积阈值(像素)，超过此值判定为需关注', 'category': 'analysis'},
+                {'key': 'analysis_circularity_threshold', 'value': '0.7', 'description': '圆度阈值，低于此值可能为异常形态', 'category': 'analysis'},
+                {'key': 'analysis_min_area', 'value': '100', 'description': '最小有效面积(像素)，小于此值忽略', 'category': 'analysis'},
+                {'key': 'analysis_confidence_threshold', 'value': '0.5', 'description': '模型置信度阈值', 'category': 'analysis'},
+                
+                # 报告内容设置
+                {'key': 'report_show_area', 'value': 'true', 'description': '报告中显示面积', 'category': 'report'},
+                {'key': 'report_show_perimeter', 'value': 'true', 'description': '报告中显示周长', 'category': 'report'},
+                {'key': 'report_show_circularity', 'value': 'true', 'description': '报告中显示圆度', 'category': 'report'},
+                {'key': 'report_show_eccentricity', 'value': 'true', 'description': '报告中显示离心率', 'category': 'report'},
+                {'key': 'report_show_intensity', 'value': 'true', 'description': '报告中显示灰度信息', 'category': 'report'},
+                {'key': 'report_show_histogram', 'value': 'true', 'description': '报告中显示灰度直方图', 'category': 'report'},
+                {'key': 'report_hospital_name', 'value': '直肠肿瘤辅助诊断中心', 'description': '报告中显示的医院名称', 'category': 'report'},
+                {'key': 'report_footer_text', 'value': '本报告仅供临床参考，最终诊断以医生意见为准', 'description': '报告页脚提示文字', 'category': 'report'},
+                
+                # 系统设置
+                {'key': 'system_max_upload_size', 'value': '50', 'description': '最大上传文件大小(MB)', 'category': 'system'},
+                {'key': 'system_session_timeout', 'value': '24', 'description': 'Token有效期(小时)', 'category': 'system'},
+                {'key': 'system_auto_backup', 'value': 'false', 'description': '是否启用自动备份', 'category': 'system'},
+            ]
+            
+            for setting in default_settings:
+                if not SystemSetting.query.filter_by(key=setting['key']).first():
+                    new_setting = SystemSetting(
+                        key=setting['key'],
+                        value=setting['value'],
+                        description=setting['description'],
+                        category=setting['category'],
+                        updated_by='system'
+                    )
+                    db.session.add(new_setting)
+            print("[DB] 已初始化系统设置")
 
             db.session.commit()
             print("[DB] 数据库初始化完成")
@@ -936,6 +984,201 @@ def get_statistics():
         })
         
     except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+# ==================== 系统设置 API ====================
+
+def admin_required(f):
+    """管理员权限装饰器"""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+        
+        if not token:
+            return jsonify({'status': 0, 'error': '未登录'}), 401
+            
+        # 查库验证token并检查角色
+        token_record = Token.query.filter_by(token=token).first()
+        if not token_record:
+            return jsonify({'status': 0, 'error': '登录已过期'}), 401
+        
+        # 检查是否是管理员
+        user = User.query.filter_by(username=token_record.username).first()
+        if not user or user.role != 'admin':
+            return jsonify({'status': 0, 'error': '需要管理员权限'}), 403
+            
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/settings', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_settings():
+    """获取所有系统设置"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        settings = SystemSetting.query.all()
+        
+        # 按分类组织设置
+        result = {
+            'analysis': [],
+            'report': [],
+            'system': []
+        }
+        
+        for setting in settings:
+            item = {
+                'key': setting.key,
+                'value': setting.value,
+                'description': setting.description,
+                'category': setting.category,
+                'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S') if setting.updated_at else None,
+                'updated_by': setting.updated_by
+            }
+            if setting.category in result:
+                result[setting.category].append(item)
+        
+        return jsonify({
+            'status': 1,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/settings', methods=['POST'])
+@admin_required
+def update_settings():
+    """更新系统设置"""
+    try:
+        data = request.get_json()
+        if not data or 'settings' not in data:
+            return jsonify({'status': 0, 'error': '缺少设置数据'})
+        
+        # 获取当前用户
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+        token_record = Token.query.filter_by(token=token).first()
+        username = token_record.username if token_record else 'unknown'
+        
+        settings = data['settings']
+        updated_count = 0
+        
+        for key, value in settings.items():
+            setting = SystemSetting.query.filter_by(key=key).first()
+            if setting:
+                setting.value = str(value)
+                setting.updated_by = username
+                updated_count += 1
+            else:
+                # 如果设置不存在，创建新的
+                new_setting = SystemSetting(
+                    key=key,
+                    value=str(value),
+                    category=data.get('category', 'system'),
+                    description=data.get('descriptions', {}).get(key, ''),
+                    updated_by=username
+                )
+                db.session.add(new_setting)
+                updated_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': f'成功更新 {updated_count} 项设置'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/settings/<key>', methods=['GET'])
+def get_setting(key):
+    """获取单个设置项（公开接口，用于前端获取配置）"""
+    try:
+        setting = SystemSetting.query.filter_by(key=key).first()
+        if not setting:
+            return jsonify({'status': 0, 'error': '设置项不存在'})
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'key': setting.key,
+                'value': setting.value,
+                'description': setting.description
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/settings/reset', methods=['POST'])
+@admin_required
+def reset_settings():
+    """重置设置为默认值"""
+    try:
+        data = request.get_json()
+        category = data.get('category') if data else None
+        
+        # 默认设置值
+        defaults = {
+            'analysis_threshold': '1000',
+            'analysis_circularity_threshold': '0.7',
+            'analysis_min_area': '100',
+            'analysis_confidence_threshold': '0.5',
+            'report_show_area': 'true',
+            'report_show_perimeter': 'true',
+            'report_show_circularity': 'true',
+            'report_show_eccentricity': 'true',
+            'report_show_intensity': 'true',
+            'report_show_histogram': 'true',
+            'report_hospital_name': '直肠肿瘤辅助诊断中心',
+            'report_footer_text': '本报告仅供临床参考，最终诊断以医生意见为准',
+            'system_max_upload_size': '50',
+            'system_session_timeout': '24',
+            'system_auto_backup': 'false',
+        }
+        
+        # 获取当前用户
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+        token_record = Token.query.filter_by(token=token).first()
+        username = token_record.username if token_record else 'unknown'
+        
+        query = SystemSetting.query
+        if category:
+            query = query.filter_by(category=category)
+        
+        settings = query.all()
+        reset_count = 0
+        
+        for setting in settings:
+            if setting.key in defaults:
+                setting.value = defaults[setting.key]
+                setting.updated_by = username
+                reset_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': f'成功重置 {reset_count} 项设置'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'status': 0, 'error': str(e)})
 
 
