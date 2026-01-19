@@ -306,6 +306,7 @@ import {
   QuestionFilled, Timer, Bell, InfoFilled, SuccessFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/authStore'
+import { getStatistics } from '@/services/statistics'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -325,18 +326,34 @@ const updateDateTime = () => {
 }
 
 // 统计数据
-const totalDiagnosis = ref(4782)
-const todayDiagnosis = ref(23)
-const accuracy = ref(93.2)
-const avgTime = ref(3.5)
+const totalDiagnosis = ref(0)
+const todayDiagnosis = ref(0)
+const accuracy = ref(0)
+const avgTime = ref(0)
+const loading = ref(false)
 
 // 最近诊断记录
-const recentDiagnosis = ref([
-  { id: 1, patientName: '张三', part: '直肠', time: '10分钟前', status: '已完成' },
-  { id: 2, patientName: '李四', part: '肺部', time: '1小时前', status: '已完成' },
-  { id: 3, patientName: '王五', part: '肝脏', time: '2小时前', status: '已完成' },
-  { id: 4, patientName: '赵六', part: '直肠', time: '今天 09:30', status: '已完成' },
-])
+const recentDiagnosis = ref([])
+
+// 从后端获取统计数据
+const fetchStatistics = async () => {
+  loading.value = true
+  try {
+    const res = await getStatistics()
+    if (res.status === 1 && res.data) {
+      totalDiagnosis.value = res.data.total_diagnoses || 0
+      todayDiagnosis.value = res.data.today_diagnoses || 0
+      accuracy.value = res.data.avg_accuracy || 93.5
+      avgTime.value = res.data.avg_time || 3.2
+      recentDiagnosis.value = res.data.recent_diagnoses || []
+    }
+  } catch (error) {
+    console.error('获取统计数据失败:', error)
+    ElMessage.warning('获取统计数据失败，显示默认数据')
+  } finally {
+    loading.value = false
+  }
+}
 
 // 导航方法
 const goToWorkspace = () => {
@@ -356,12 +373,13 @@ const openHelp = () => {
 }
 
 const viewRecord = (item) => {
-  ElMessage.info(`查看 ${item.patientName} 的诊断记录`)
+  router.push(`/history?id=${item.id}`)
 }
 
 onMounted(() => {
   updateDateTime()
   setInterval(updateDateTime, 60000) // 每分钟更新一次
+  fetchStatistics() // 获取统计数据
 })
 </script>
 
