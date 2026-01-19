@@ -158,8 +158,8 @@ const fetchStatistics = async () => {
   loading.value = true
   try {
     const res = await getStatistics()
-    if (res.data.success) {
-      const data = res.data.data
+    if (res.status === 1 && res.data) {
+      const data = res.data
       statistics.total_diagnoses = data.total_diagnoses || 0
       statistics.total_patients = data.total_patients || 0
       statistics.today_diagnoses = data.today_diagnoses || 0

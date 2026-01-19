@@ -212,9 +212,9 @@ const fetchHistory = async () => {
       per_page: pagination.per_page,
       patient_id: searchForm.patient_id || undefined
     })
-    if (res.data.success) {
-      historyList.value = res.data.data.items || []
-      pagination.total = res.data.data.total || 0
+    if (res.status === 1) {
+      historyList.value = res.data?.list || []
+      pagination.total = res.data?.total || 0
     }
   } catch (error) {
     console.error('获取历史记录失败:', error)
@@ -228,8 +228,8 @@ const fetchHistory = async () => {
 const viewDetail = async (row) => {
   try {
     const res = await getDiagnosisDetail(row.id)
-    if (res.data.success) {
-      currentDetail.value = res.data.data
+    if (res.status === 1) {
+      currentDetail.value = res.data
       detailVisible.value = true
     }
   } catch (error) {

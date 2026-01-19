@@ -50,6 +50,11 @@ const routes = [
                 path: 'settings',
                 component: () => import('../modules/system/views/SettingsView.vue'),
                 meta: { title: "系统设置 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
+            },
+            {
+                path: 'announcements',
+                component: () => import('../modules/system/views/AnnouncementView.vue'),
+                meta: { title: "公告管理 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
             }
         ]
     },

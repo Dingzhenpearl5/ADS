@@ -70,6 +70,27 @@
       </el-card>
     </div>
 
+    <!-- 系统公告 -->
+    <transition-group name="notice-fade" tag="div" class="notice-container">
+      <el-alert
+        v-for="ann in visibleAnnouncements"
+        :key="ann.id"
+        :title="ann.title"
+        :type="ann.type || 'info'"
+        :closable="true"
+        show-icon
+        class="notice-alert"
+        @close="dismissAnnouncement(ann.id)"
+      >
+        <template #default>
+          <div class="notice-alert-content">
+            <span class="notice-text">{{ ann.content }}</span>
+            <span class="notice-time">{{ formatTime(ann.published_at) }}</span>
+          </div>
+        </template>
+      </el-alert>
+    </transition-group>
+
     <el-row :gutter="20">
       <!-- 左侧：系统介绍 + AI能力 -->
       <el-col :xl="16" :lg="16" :md="24" :sm="24">
@@ -361,32 +382,7 @@
           </div>
         </el-card>
 
-        <!-- 系统公告 -->
-        <el-card class="notice-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <el-icon><Bell /></el-icon>
-              <span>系统公告</span>
-            </div>
-          </template>
 
-          <div class="notice-list">
-            <div class="notice-item">
-              <el-icon color="#409eff"><InfoFilled /></el-icon>
-              <div class="notice-content">
-                <div class="notice-title">系统维护通知</div>
-                <div class="notice-desc">本周六凌晨 2:00-4:00 进行系统维护</div>
-              </div>
-            </div>
-            <div class="notice-item">
-              <el-icon color="#67c23a"><SuccessFilled /></el-icon>
-              <div class="notice-content">
-                <div class="notice-title">模型更新</div>
-                <div class="notice-desc">直肠诊断模型已更新，准确率提升至 94.5%</div>
-              </div>
-            </div>
-          </div>
-        </el-card>
       </el-col>
     </el-row>
   </div>
@@ -399,14 +395,42 @@ import { ElMessage } from 'element-plus'
 import {
   VideoPlay, Document, TrendCharts, Calendar, CircleCheck, Clock,
   Notebook, Cpu, ArrowRight, Select, Grid, DataAnalysis, 
-  QuestionFilled, Timer, Bell, InfoFilled, SuccessFilled, Search, User
+  QuestionFilled, Timer, Search, User
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/authStore'
 import { getStatistics, getDiagnosisHistory } from '@/services/statistics'
 import { getPatientInfo } from '@/services/patient'
+import { getAnnouncements } from '@/services/announcement'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+// 系统公告
+const announcements = ref([])
+
+// 按用户区分已关闭的公告
+const getDismissedKey = () => {
+  const userId = authStore.userInfo?.id || authStore.userInfo?.username || 'guest'
+  return `dismissedAnnouncements_${userId}`
+}
+
+const dismissedIds = ref([])
+
+// 可见的公告（过滤掉已关闭的）
+const visibleAnnouncements = computed(() => {
+  return announcements.value.filter(ann => !dismissedIds.value.includes(ann.id))
+})
+
+// 关闭公告
+const dismissAnnouncement = (id) => {
+  dismissedIds.value.push(id)
+  localStorage.setItem(getDismissedKey(), JSON.stringify(dismissedIds.value))
+}
+
+// 初始化已关闭公告列表
+const initDismissedIds = () => {
+  dismissedIds.value = JSON.parse(localStorage.getItem(getDismissedKey()) || '[]')
+}
 
 // 用户信息
 const userName = computed(() => authStore.userInfo?.name || authStore.userInfo?.username || '用户')
@@ -566,10 +590,42 @@ const viewRecord = (item) => {
   router.push(`/history?id=${item.id}`)
 }
 
+// 获取系统公告
+const fetchAnnouncements = async () => {
+  try {
+    console.log('[公告] 开始获取公告...')
+    const res = await getAnnouncements({ status: 'published', per_page: 5 })
+    console.log('[公告] 响应:', res)
+    if (res.status === 1 && res.data?.items) {
+      announcements.value = res.data.items
+      console.log('[公告] 获取成功, 数量:', announcements.value.length)
+    } else {
+      console.log('[公告] 响应状态异常:', res)
+    }
+  } catch (error) {
+    console.error('获取公告失败:', error)
+  }
+}
+
+const formatTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days}天前`
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
 onMounted(() => {
   updateDateTime()
   setInterval(updateDateTime, 60000) // 每分钟更新一次
+  initDismissedIds() // 初始化用户已关闭的公告列表
   fetchStatistics() // 获取统计数据（仅管理员）
+  fetchAnnouncements() // 获取系统公告
 })
 </script>
 
@@ -578,6 +634,36 @@ onMounted(() => {
   padding: 20px;
   min-height: calc(100vh - 70px);
   background: linear-gradient(135deg, #f5f8fc 0%, #e3f2fd 100%);
+}
+
+/* 系统公告 */
+.announcement-section {
+  margin-bottom: 16px;
+}
+
+.announcement-alert {
+  border-radius: 8px;
+}
+
+.announcement-alert :deep(.el-alert__content) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.announcement-content {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 20px;
+}
+
+.announcement-time {
+  color: #909399;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* 欢迎横幅 */
@@ -920,35 +1006,52 @@ onMounted(() => {
 }
 
 /* 系统公告 */
-.notice-list {
+.notice-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
-.notice-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  background: #f8fafc;
+.notice-alert {
   border-radius: 8px;
 }
 
-.notice-content {
+.notice-alert :deep(.el-alert__content) {
+  width: 100%;
+}
+
+.notice-alert-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.notice-text {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 16px;
 }
 
-.notice-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 4px;
+.notice-time {
+  font-size: 12px;
+  color: #909399;
+  white-space: nowrap;
 }
 
-.notice-desc {
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
+/* 公告动画 */
+.notice-fade-enter-active,
+.notice-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.notice-fade-enter-from,
+.notice-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* 响应式 */

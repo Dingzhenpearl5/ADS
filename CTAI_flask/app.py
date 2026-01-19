@@ -142,6 +142,23 @@ class SystemSetting(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     updated_by = db.Column(db.String(50))  # 最后修改人
 
+# 系统公告模型
+class Announcement(db.Model):
+    """系统公告"""
+    __tablename__ = 'announcements'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)  # 公告标题
+    content = db.Column(db.Text, nullable=False)  # 公告内容
+    type = db.Column(db.String(20), default='info')  # 类型：info/warning/success/error
+    priority = db.Column(db.Integer, default=0)  # 优先级，数值越大越靠前
+    status = db.Column(db.String(20), default='draft')  # 状态：draft(草稿)/published(已发布)/archived(已下架)
+    created_by = db.Column(db.String(50), db.ForeignKey('users.username'))  # 创建人
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    published_at = db.Column(db.DateTime)  # 发布时间
+    
+    author = db.relationship('User', backref=db.backref('announcements', lazy=True))
+
 def init_db():
     """初始化数据库：创建表并添加默认用户"""
     with app.app_context():
@@ -244,7 +261,7 @@ def after_request(response):
         response.headers['Access-Control-Allow-Origin'] = '*'
         
     response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization'
     return response
 
@@ -261,27 +278,6 @@ def file_too_large(e):
 def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-# 验证token的装饰器
-def token_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
-        if token and token.startswith('Bearer '):
-            token = token[7:]
-        
-        if not token:
-            return jsonify({'status': 0, 'error': '未登录'}), 401
-            
-        # 查库验证token
-        token_record = Token.query.filter_by(token=token).first()
-        if not token_record:
-            return jsonify({'status': 0, 'error': '登录已过期'}), 401
-            
-        return f(*args, **kwargs)
-    return decorated
 
 
 @app.route('/')
@@ -994,6 +990,10 @@ def admin_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
+        # OPTIONS 预检请求直接放行
+        if request.method == 'OPTIONS':
+            return jsonify({'status': 1})
+            
         token = request.headers.get('Authorization')
         if token and token.startswith('Bearer '):
             token = token[7:]
@@ -1004,6 +1004,10 @@ def admin_required(f):
         # 查库验证token并检查角色
         token_record = Token.query.filter_by(token=token).first()
         if not token_record:
+            return jsonify({'status': 0, 'error': '登录已过期'}), 401
+        
+        # 检查token是否过期
+        if token_record.expire_time and token_record.expire_time < datetime.datetime.now():
             return jsonify({'status': 0, 'error': '登录已过期'}), 401
         
         # 检查是否是管理员
@@ -1175,6 +1179,252 @@ def reset_settings():
         return jsonify({
             'status': 1,
             'message': f'成功重置 {reset_count} 项设置'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+# ==================== 系统公告 API ====================
+
+@app.route('/api/announcements', methods=['GET', 'OPTIONS'])
+def get_announcements():
+    """获取公告列表"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        # 判断是否是管理员（管理员可以看到所有状态的公告）
+        is_admin = False
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+            token_record = Token.query.filter_by(token=token).first()
+            if token_record:
+                user = User.query.filter_by(username=token_record.username).first()
+                is_admin = user and user.role == 'admin'
+        
+        # 获取查询参数
+        status = request.args.get('status')  # 按状态筛选
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        query = Announcement.query
+        
+        if status:
+            query = query.filter_by(status=status)
+        elif not is_admin:
+            # 非管理员只能看到已发布的公告
+            query = query.filter_by(status='published')
+        
+        # 按优先级和时间排序
+        query = query.order_by(Announcement.priority.desc(), Announcement.created_at.desc())
+        
+        # 分页
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        announcements = []
+        for ann in pagination.items:
+            announcements.append({
+                'id': ann.id,
+                'title': ann.title,
+                'content': ann.content,
+                'type': ann.type,
+                'priority': ann.priority,
+                'status': ann.status,
+                'created_by': ann.created_by,
+                'created_at': ann.created_at.strftime('%Y-%m-%d %H:%M:%S') if ann.created_at else None,
+                'updated_at': ann.updated_at.strftime('%Y-%m-%d %H:%M:%S') if ann.updated_at else None,
+                'published_at': ann.published_at.strftime('%Y-%m-%d %H:%M:%S') if ann.published_at else None
+            })
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'items': announcements,
+                'total': pagination.total,
+                'page': page,
+                'per_page': per_page
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements', methods=['POST', 'OPTIONS'])
+@admin_required
+def create_announcement():
+    """创建公告"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'status': 0, 'error': '缺少数据'})
+        
+        title = data.get('title')
+        content = data.get('content')
+        
+        if not title or not content:
+            return jsonify({'status': 0, 'error': '标题和内容不能为空'})
+        
+        # 获取当前用户
+        token = request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token[7:]
+        token_record = Token.query.filter_by(token=token).first()
+        username = token_record.username if token_record else 'unknown'
+        
+        announcement = Announcement(
+            title=title,
+            content=content,
+            type=data.get('type', 'info'),
+            priority=data.get('priority', 0),
+            status=data.get('status', 'draft'),
+            created_by=username
+        )
+        
+        # 如果直接发布，设置发布时间
+        if data.get('status') == 'published':
+            announcement.published_at = datetime.datetime.now()
+        
+        db.session.add(announcement)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': '公告创建成功',
+            'data': {'id': announcement.id}
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements/<int:id>', methods=['GET'])
+def get_announcement(id):
+    """获取单个公告详情"""
+    try:
+        announcement = Announcement.query.get(id)
+        if not announcement:
+            return jsonify({'status': 0, 'error': '公告不存在'})
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'id': announcement.id,
+                'title': announcement.title,
+                'content': announcement.content,
+                'type': announcement.type,
+                'priority': announcement.priority,
+                'status': announcement.status,
+                'created_by': announcement.created_by,
+                'created_at': announcement.created_at.strftime('%Y-%m-%d %H:%M:%S') if announcement.created_at else None,
+                'updated_at': announcement.updated_at.strftime('%Y-%m-%d %H:%M:%S') if announcement.updated_at else None,
+                'published_at': announcement.published_at.strftime('%Y-%m-%d %H:%M:%S') if announcement.published_at else None
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements/<int:id>', methods=['PUT', 'OPTIONS'])
+@admin_required
+def update_announcement(id):
+    """更新公告"""
+    try:
+        announcement = Announcement.query.get(id)
+        if not announcement:
+            return jsonify({'status': 0, 'error': '公告不存在'})
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'status': 0, 'error': '缺少数据'})
+        
+        # 更新字段
+        if 'title' in data:
+            announcement.title = data['title']
+        if 'content' in data:
+            announcement.content = data['content']
+        if 'type' in data:
+            announcement.type = data['type']
+        if 'priority' in data:
+            announcement.priority = data['priority']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': '公告更新成功'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements/<int:id>/publish', methods=['POST', 'OPTIONS'])
+@admin_required
+def publish_announcement(id):
+    """发布公告"""
+    try:
+        announcement = Announcement.query.get(id)
+        if not announcement:
+            return jsonify({'status': 0, 'error': '公告不存在'})
+        
+        announcement.status = 'published'
+        announcement.published_at = datetime.datetime.now()
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': '公告已发布'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements/<int:id>/archive', methods=['POST', 'OPTIONS'])
+@admin_required
+def archive_announcement(id):
+    """下架公告"""
+    try:
+        announcement = Announcement.query.get(id)
+        if not announcement:
+            return jsonify({'status': 0, 'error': '公告不存在'})
+        
+        announcement.status = 'archived'
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': '公告已下架'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/announcements/<int:id>', methods=['DELETE', 'OPTIONS'])
+@admin_required
+def delete_announcement(id):
+    """删除公告"""
+    try:
+        announcement = Announcement.query.get(id)
+        if not announcement:
+            return jsonify({'status': 0, 'error': '公告不存在'})
+        
+        db.session.delete(announcement)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 1,
+            'message': '公告已删除'
         })
         
     except Exception as e:
