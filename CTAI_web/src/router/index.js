@@ -39,7 +39,7 @@ const routes = [
             {
                 path: 'statistics',
                 component: () => import('../modules/report/views/StatisticsView.vue'),
-                meta: { title: "统计分析 - 直肠肿瘤辅助诊断系统" }
+                meta: { title: "统计分析 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
             },
             {
                 path: 'help',
@@ -80,6 +80,19 @@ router.beforeEach((to, from, next) => {
     } else if (to.path === '/login' && token) {
         next('/home');
     } else {
+        // 检查是否需要管理员权限
+        const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin === true)
+        if (requiresAdmin) {
+            // 从 localStorage 获取用户信息判断角色
+            const userInfoStr = localStorage.getItem('userInfo')
+            const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
+            if (!userInfo || userInfo.role !== 'admin') {
+                console.log('[Router] 需要管理员权限但当前用户不是管理员')
+                ElMessage.error('您没有权限访问该页面');
+                next('/home');
+                return;
+            }
+        }
         next();
     }
 });

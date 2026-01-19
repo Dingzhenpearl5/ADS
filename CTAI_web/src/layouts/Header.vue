@@ -20,7 +20,7 @@
           <el-menu-item index="1">首页</el-menu-item>
           <el-menu-item index="2">工作台</el-menu-item>
           <el-menu-item index="3">历史记录</el-menu-item>
-          <el-menu-item index="4">统计分析</el-menu-item>
+          <el-menu-item index="4" v-if="isAdmin">统计分析</el-menu-item>
         </el-menu>
       </nav>
 
@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -98,6 +98,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activeIndex = ref('1')
 const fileInput = ref(null)
+
+// 判断是否是管理员
+const isAdmin = computed(() => authStore.userInfo?.role === 'admin')
 
 // 路由与菜单索引的映射
 const routeMap = {

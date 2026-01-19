@@ -3,7 +3,7 @@
     <!-- 搜索栏 -->
     <el-card class="search-card" shadow="never">
       <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="患者ID">
+        <el-form-item label="患者ID" :required="!isAdmin">
           <el-input 
             v-model="searchForm.patient_id" 
             placeholder="请输入患者ID" 
@@ -16,12 +16,25 @@
             <el-icon><Search /></el-icon>
             搜索
           </el-button>
-          <el-button @click="handleReset">
+          <el-button @click="handleReset" v-if="isAdmin">
             <el-icon><Refresh /></el-icon>
             重置
           </el-button>
         </el-form-item>
       </el-form>
+      
+      <!-- 隐私提示 - 仅医生可见 -->
+      <el-alert 
+        v-if="!isAdmin"
+        type="warning" 
+        :closable="false" 
+        show-icon
+        style="margin-top: 12px;"
+      >
+        <template #title>
+          为保护患者隐私，请输入患者ID后查询诊断历史记录
+        </template>
+      </el-alert>
     </el-card>
 
     <!-- 历史记录表格 -->
@@ -33,51 +46,63 @@
         </div>
       </template>
 
-      <el-table 
-        :data="historyList" 
-        v-loading="loading"
-        stripe
-        border
-        style="width: 100%"
-      >
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="patient_id" label="患者ID" width="120" align="center" />
-        <el-table-column prop="doctor" label="诊断医生" width="120" align="center" />
-        <el-table-column prop="filename" label="文件名" min-width="150" show-overflow-tooltip />
-        <el-table-column label="诊断结果" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getResultType(row.features)">
-              {{ getResultText(row.features) }}
-            </el-tag>
+      <!-- 未查询时的提示 -->
+      <div v-if="!isAdmin && !hasSearched" class="empty-tip">
+        <el-empty description="请输入患者ID进行查询" :image-size="150">
+          <template #image>
+            <el-icon :size="80" color="#909399"><Lock /></el-icon>
           </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="诊断时间" width="180" align="center">
-          <template #default="{ row }">
-            {{ formatDate(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="viewDetail(row)">
-              <el-icon><View /></el-icon>
-              查看详情
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.per_page"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pagination.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
+        </el-empty>
       </div>
+
+      <!-- 表格内容 -->
+      <template v-else>
+        <el-table 
+          :data="historyList" 
+          v-loading="loading"
+          stripe
+          border
+          style="width: 100%"
+        >
+          <el-table-column prop="id" label="ID" width="80" align="center" />
+          <el-table-column prop="patient_id" label="患者ID" width="120" align="center" />
+          <el-table-column prop="doctor" label="诊断医生" width="120" align="center" />
+          <el-table-column prop="filename" label="文件名" min-width="150" show-overflow-tooltip />
+          <el-table-column label="诊断结果" width="120" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getResultType(row.features)">
+                {{ getResultText(row.features) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="诊断时间" width="180" align="center">
+            <template #default="{ row }">
+              {{ formatDate(row.created_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link @click="viewDetail(row)">
+                <el-icon><View /></el-icon>
+                查看详情
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 分页 -->
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.per_page"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="pagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
+      </template>
     </el-card>
 
     <!-- 详情弹窗 -->
@@ -151,15 +176,22 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, View } from '@element-plus/icons-vue'
+import { Search, Refresh, View, Lock } from '@element-plus/icons-vue'
 import { getDiagnosisHistory, getDiagnosisDetail } from '@/services/diagnosis'
+import { useAuthStore } from '@/stores/authStore'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const historyList = ref([])
 const detailVisible = ref(false)
 const currentDetail = ref(null)
+const hasSearched = ref(false) // 是否已执行过搜索
+
+// 判断是否是管理员
+const isAdmin = computed(() => authStore.userInfo?.role === 'admin')
 
 const searchForm = reactive({
   patient_id: ''
@@ -208,6 +240,12 @@ const viewDetail = async (row) => {
 
 // 搜索
 const handleSearch = () => {
+  // 非管理员必须输入患者ID
+  if (!isAdmin.value && !searchForm.patient_id.trim()) {
+    ElMessage.warning('请输入患者ID进行查询')
+    return
+  }
+  hasSearched.value = true
   pagination.page = 1
   fetchHistory()
 }
@@ -258,7 +296,11 @@ const getResultText = (features) => {
 }
 
 onMounted(() => {
-  fetchHistory()
+  // 管理员自动加载数据，医生需要输入患者ID后才能查询
+  if (isAdmin.value) {
+    hasSearched.value = true
+    fetchHistory()
+  }
 })
 </script>
 
@@ -335,5 +377,10 @@ onMounted(() => {
 
 .features-section {
   margin-top: 20px;
+}
+
+.empty-tip {
+  padding: 60px 0;
+  text-align: center;
 }
 </style>

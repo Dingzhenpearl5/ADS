@@ -19,8 +19,8 @@
       </div>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
+    <!-- 统计卡片 - 只对管理员显示全局数据 -->
+    <div class="stats-grid" v-if="isAdmin">
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
           <div class="stat-icon" style="background: linear-gradient(135deg, #409eff 0%, #1890ff 100%)">
@@ -73,6 +73,78 @@
     <el-row :gutter="20">
       <!-- 左侧：系统介绍 + AI能力 -->
       <el-col :xl="16" :lg="16" :md="24" :sm="24">
+        <!-- 患者信息查询卡片 - 医生专用 -->
+        <el-card class="patient-query-card" shadow="hover" v-if="!isAdmin">
+          <template #header>
+            <div class="card-header">
+              <el-icon><Search /></el-icon>
+              <span>患者信息查询</span>
+              <el-tag type="warning" size="small" style="margin-left: auto;">数据隐私保护</el-tag>
+            </div>
+          </template>
+          
+          <div class="query-content">
+            <el-alert 
+              type="info" 
+              :closable="false" 
+              show-icon
+              style="margin-bottom: 16px;"
+            >
+              <template #title>
+                为保护患者隐私，请输入患者ID后查询相关诊断信息
+              </template>
+            </el-alert>
+            
+            <div class="query-form">
+              <el-input 
+                v-model="queryPatientId" 
+                placeholder="请输入患者ID"
+                size="large"
+                clearable
+                @keyup.enter="queryPatientInfo"
+                style="width: 300px;"
+              >
+                <template #prefix>
+                  <el-icon><User /></el-icon>
+                </template>
+              </el-input>
+              <el-button 
+                type="primary" 
+                size="large"
+                :loading="querying"
+                @click="queryPatientInfo"
+              >
+                <el-icon><Search /></el-icon>
+                查询
+              </el-button>
+            </div>
+
+            <!-- 查询到的患者信息 -->
+            <div v-if="queriedPatient" class="patient-result">
+              <el-divider content-position="left">患者信息</el-divider>
+              <el-descriptions :column="3" border>
+                <el-descriptions-item label="患者ID">{{ queriedPatient.id }}</el-descriptions-item>
+                <el-descriptions-item label="姓名">{{ queriedPatient.name }}</el-descriptions-item>
+                <el-descriptions-item label="性别">{{ queriedPatient.gender }}</el-descriptions-item>
+                <el-descriptions-item label="年龄">{{ queriedPatient.age }}</el-descriptions-item>
+                <el-descriptions-item label="电话">{{ queriedPatient.phone }}</el-descriptions-item>
+                <el-descriptions-item label="检查部位">{{ queriedPatient.part }}</el-descriptions-item>
+              </el-descriptions>
+              
+              <div class="patient-actions">
+                <el-button type="primary" @click="goToPatientHistory">
+                  <el-icon><Document /></el-icon>
+                  查看该患者历史记录
+                </el-button>
+                <el-button type="success" @click="goToWorkspaceWithPatient">
+                  <el-icon><VideoPlay /></el-icon>
+                  为该患者进行诊断
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
+
         <!-- 系统介绍 -->
         <el-card class="intro-card" shadow="hover">
           <template #header>
@@ -220,7 +292,8 @@
               <span>历史记录</span>
             </div>
 
-            <div class="shortcut-item" @click="goToStatistics">
+            <!-- 统计分析只对管理员显示 -->
+            <div class="shortcut-item" @click="goToStatistics" v-if="isAdmin">
               <div class="shortcut-icon" style="background: linear-gradient(135deg, #5cadff 0%, #0080ff 100%)">
                 <el-icon :size="28"><DataAnalysis /></el-icon>
               </div>
@@ -236,16 +309,17 @@
           </div>
         </el-card>
 
-        <!-- 最近诊断 -->
+        <!-- 最近诊断 - 根据角色显示不同内容 -->
         <el-card class="recent-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <el-icon><Timer /></el-icon>
-              <span>最近诊断</span>
+              <span>{{ isAdmin ? '最近诊断' : '患者诊断记录' }}</span>
             </div>
           </template>
 
-          <div class="recent-list">
+          <!-- 管理员显示全局最近诊断 -->
+          <div class="recent-list" v-if="isAdmin">
             <div 
               v-for="item in recentDiagnosis" 
               :key="item.id"
@@ -262,6 +336,28 @@
             </div>
 
             <el-empty v-if="recentDiagnosis.length === 0" description="暂无诊断记录" :image-size="100" />
+          </div>
+
+          <!-- 医生：需要先查询患者才显示诊断记录 -->
+          <div class="recent-list" v-else>
+            <div v-if="!queriedPatient" class="query-tip">
+              <el-empty description="请先在左侧查询患者信息" :image-size="80" />
+            </div>
+            <template v-else>
+              <div 
+                v-for="item in patientDiagnosisList" 
+                :key="item.id"
+                class="recent-item"
+                @click="viewRecord(item)"
+              >
+                <div class="recent-info">
+                  <div class="recent-title">{{ queriedPatient.name }} - {{ item.part || '直肠' }}</div>
+                  <div class="recent-time">{{ item.time }}</div>
+                </div>
+                <el-tag type="success" size="small">已完成</el-tag>
+              </div>
+              <el-empty v-if="patientDiagnosisList.length === 0" description="该患者暂无诊断记录" :image-size="80" />
+            </template>
           </div>
         </el-card>
 
@@ -303,16 +399,20 @@ import { ElMessage } from 'element-plus'
 import {
   VideoPlay, Document, TrendCharts, Calendar, CircleCheck, Clock,
   Notebook, Cpu, ArrowRight, Select, Grid, DataAnalysis, 
-  QuestionFilled, Timer, Bell, InfoFilled, SuccessFilled
+  QuestionFilled, Timer, Bell, InfoFilled, SuccessFilled, Search, User
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/authStore'
-import { getStatistics } from '@/services/statistics'
+import { getStatistics, getDiagnosisHistory } from '@/services/statistics'
+import { getPatientInfo } from '@/services/patient'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 // 用户信息
 const userName = computed(() => authStore.userInfo?.name || authStore.userInfo?.username || '用户')
+
+// 判断是否是管理员
+const isAdmin = computed(() => authStore.userInfo?.role === 'admin')
 
 // 当前日期时间
 const currentDate = ref('')
@@ -325,18 +425,97 @@ const updateDateTime = () => {
   currentTime.value = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-// 统计数据
+// 统计数据（仅管理员）
 const totalDiagnosis = ref(0)
 const todayDiagnosis = ref(0)
 const accuracy = ref(0)
 const avgTime = ref(0)
 const loading = ref(false)
 
-// 最近诊断记录
+// 最近诊断记录（仅管理员）
 const recentDiagnosis = ref([])
 
-// 从后端获取统计数据
+// 患者查询相关（医生专用）
+const queryPatientId = ref('')
+const querying = ref(false)
+const queriedPatient = ref(null)
+const patientDiagnosisList = ref([])
+
+// 查询患者信息
+const queryPatientInfo = async () => {
+  if (!queryPatientId.value.trim()) {
+    ElMessage.warning('请输入患者ID')
+    return
+  }
+  
+  querying.value = true
+  queriedPatient.value = null
+  patientDiagnosisList.value = []
+  
+  try {
+    const res = await getPatientInfo(queryPatientId.value)
+    if (res.status === 1 && res.data) {
+      const d = res.data
+      queriedPatient.value = {
+        id: d['ID'] || queryPatientId.value,
+        name: d['姓名'] || '未知',
+        gender: d['性别'] || '未知',
+        age: d['年龄'] || '未知',
+        phone: d['电话'] || '未知',
+        part: d['部位'] || '直肠'
+      }
+      ElMessage.success('患者信息查询成功')
+      // 查询该患者的诊断历史
+      await fetchPatientDiagnosis()
+    } else {
+      ElMessage.warning('未找到该患者信息')
+    }
+  } catch (error) {
+    console.error('查询患者信息失败:', error)
+    ElMessage.error('查询失败，请检查网络')
+  } finally {
+    querying.value = false
+  }
+}
+
+// 查询患者的诊断历史
+const fetchPatientDiagnosis = async () => {
+  if (!queriedPatient.value) return
+  
+  try {
+    const res = await getDiagnosisHistory({ patient_id: queriedPatient.value.id })
+    if (res.status === 1 && res.data) {
+      patientDiagnosisList.value = (res.data.list || []).map(item => ({
+        id: item.id,
+        part: queriedPatient.value.part || '直肠',
+        time: item.created_at || '未知时间'
+      }))
+    }
+  } catch (error) {
+    console.error('获取患者诊断历史失败:', error)
+  }
+}
+
+// 跳转到患者历史记录页面
+const goToPatientHistory = () => {
+  if (queriedPatient.value) {
+    router.push(`/history?patient_id=${queriedPatient.value.id}`)
+  }
+}
+
+// 为该患者进行诊断
+const goToWorkspaceWithPatient = () => {
+  if (queriedPatient.value) {
+    // 将患者ID存储到sessionStorage，诊断页面可以读取
+    sessionStorage.setItem('currentPatientId', queriedPatient.value.id)
+    router.push('/workspace')
+  }
+}
+
+// 从后端获取统计数据（仅管理员）
 const fetchStatistics = async () => {
+  if (!isAdmin.value) return  // 非管理员不获取全局统计
+  
   loading.value = true
   try {
     const res = await getStatistics()
@@ -361,10 +540,21 @@ const goToWorkspace = () => {
 }
 
 const goToHistory = () => {
-  router.push('/history')
+  // 医生需要带上患者ID
+  if (!isAdmin.value && queriedPatient.value) {
+    router.push(`/history?patient_id=${queriedPatient.value.id}`)
+  } else if (!isAdmin.value) {
+    ElMessage.warning('请先查询患者信息')
+  } else {
+    router.push('/history')
+  }
 }
 
 const goToStatistics = () => {
+  if (!isAdmin.value) {
+    ElMessage.warning('统计分析仅管理员可访问')
+    return
+  }
   router.push('/statistics')
 }
 
@@ -379,7 +569,7 @@ const viewRecord = (item) => {
 onMounted(() => {
   updateDateTime()
   setInterval(updateDateTime, 60000) // 每分钟更新一次
-  fetchStatistics() // 获取统计数据
+  fetchStatistics() // 获取统计数据（仅管理员）
 })
 </script>
 
@@ -485,7 +675,8 @@ onMounted(() => {
 .ai-capability-card,
 .shortcuts-card,
 .recent-card,
-.notice-card {
+.notice-card,
+.patient-query-card {
   border-radius: 12px;
   margin-bottom: 20px;
 }
@@ -496,6 +687,35 @@ onMounted(() => {
   gap: 8px;
   font-weight: 600;
   color: #303133;
+}
+
+/* 患者信息查询卡片 */
+.patient-query-card {
+  background: linear-gradient(135deg, #fff 0%, #f0f7ff 100%);
+}
+
+.query-content {
+  padding: 8px 0;
+}
+
+.query-form {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.patient-result {
+  margin-top: 16px;
+}
+
+.patient-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+}
+
+.query-tip {
+  padding: 20px 0;
 }
 
 /* 系统介绍 */
