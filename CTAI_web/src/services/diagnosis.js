@@ -31,6 +31,22 @@ export function getDiagnosisDetail(id) {
 }
 
 /**
+ * 保存医生诊断记录
+ * @param {number} id - 诊断记录ID
+ * @param {Object} data - 诊断数据
+ * @param {string} data.doctor_diagnosis - 医生诊断描述
+ * @param {string} data.doctor_suggestion - 治疗建议
+ * @param {string} data.diagnosis_conclusion - 诊断结论
+ */
+export function saveDoctorRecord(id, data) {
+    return request({
+        url: `/api/diagnosis/${id}/record`,
+        method: 'post',
+        data
+    })
+}
+
+/**
  * 获取统计数据
  */
 export function getStatistics() {

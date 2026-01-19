@@ -117,8 +117,14 @@ class DiagnosisRecord(db.Model):
     perimeter = db.Column(db.Float)  # 周长
     features = db.Column(db.Text)  # JSON格式存储所有特征
     
+    # 医生诊断记录
+    doctor_diagnosis = db.Column(db.Text)  # 医生的诊断描述
+    doctor_suggestion = db.Column(db.Text)  # 医生的治疗建议
+    diagnosis_conclusion = db.Column(db.String(100))  # 诊断结论（如：良性/恶性/待观察）
+    
     # 时间信息
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     
     # 关系
     patient = db.relationship('Patient', backref=db.backref('diagnoses', lazy=True))
@@ -630,6 +636,7 @@ def predict_image():
         }
         
         # 保存诊断记录到数据库
+        record_id = None
         try:
             import json
             # 从请求中获取可选的患者ID和医生信息
@@ -653,16 +660,21 @@ def predict_image():
             )
             db.session.add(record)
             db.session.commit()
+            record_id = record.id
             print(f"[Predict] 诊断记录已保存，ID: {record.id}")
         except Exception as save_err:
             print(f"[Predict] 保存诊断记录失败: {save_err}")
+        
+        # 添加诊断记录ID到返回结果
+        result['record_id'] = record_id
         
         # 通过 Socket 发送结果
         socketio.emit('result', {
             'url2': result['draw_url'],
             'feature_list': image_info,
             'area': image_info.get('面积', 0),
-            'perimeter': image_info.get('周长', 0)
+            'perimeter': image_info.get('周长', 0),
+            'record_id': record_id
         })
         
         print(f"[Predict] 预测完成!")
@@ -753,18 +765,79 @@ def get_diagnosis_detail(record_id):
                 'id': record.id,
                 'patient_id': record.patient_id,
                 'patient_name': record.patient.name if record.patient else None,
+                'patient_gender': record.patient.gender if record.patient else None,
+                'patient_age': record.patient.age if record.patient else None,
+                'patient_phone': record.patient.phone if record.patient else None,
                 'doctor': record.doctor_username,
+                'doctor_name': record.doctor.name if record.doctor else None,
                 'filename': record.filename,
                 'image_url': record.image_url,
                 'draw_url': record.draw_url,
                 'area': record.area,
                 'perimeter': record.perimeter,
                 'features': json.loads(record.features) if record.features else {},
-                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else None
+                'doctor_diagnosis': record.doctor_diagnosis,
+                'doctor_suggestion': record.doctor_suggestion,
+                'diagnosis_conclusion': record.diagnosis_conclusion,
+                'created_at': record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else None,
+                'updated_at': record.updated_at.strftime('%Y-%m-%d %H:%M:%S') if record.updated_at else None
             }
         })
         
     except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/diagnosis/<int:record_id>/record', methods=['POST', 'OPTIONS'])
+@token_required
+def save_doctor_record(record_id):
+    """
+    保存医生的诊断记录
+    参数:
+        - doctor_diagnosis: 医生的诊断描述
+        - doctor_suggestion: 医生的治疗建议
+        - diagnosis_conclusion: 诊断结论（良性/恶性/待观察等）
+    """
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        record = DiagnosisRecord.query.get(record_id)
+        if not record:
+            return jsonify({'status': 0, 'error': '诊断记录不存在'}), 404
+        
+        data = request.get_json()
+        
+        # 更新医生诊断记录
+        if 'doctor_diagnosis' in data:
+            record.doctor_diagnosis = data['doctor_diagnosis']
+        if 'doctor_suggestion' in data:
+            record.doctor_suggestion = data['doctor_suggestion']
+        if 'diagnosis_conclusion' in data:
+            record.diagnosis_conclusion = data['diagnosis_conclusion']
+        
+        # 更新医生信息（如果之前没有）
+        if not record.doctor_username and hasattr(request, 'current_user'):
+            record.doctor_username = request.current_user.username
+        
+        db.session.commit()
+        
+        print(f"[Diagnosis] 诊断记录 {record_id} 已更新医生记录")
+        
+        return jsonify({
+            'status': 1,
+            'message': '诊断记录保存成功',
+            'data': {
+                'id': record.id,
+                'doctor_diagnosis': record.doctor_diagnosis,
+                'doctor_suggestion': record.doctor_suggestion,
+                'diagnosis_conclusion': record.diagnosis_conclusion,
+                'updated_at': record.updated_at.strftime('%Y-%m-%d %H:%M:%S') if record.updated_at else None
+            }
+        })
+        
+    except Exception as e:
+        print(f"[Diagnosis] 保存医生记录失败: {e}")
         return jsonify({'status': 0, 'error': str(e)})
 
 

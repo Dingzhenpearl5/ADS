@@ -40,6 +40,11 @@ const routes = [
                 path: 'statistics',
                 component: () => import('../modules/report/views/StatisticsView.vue'),
                 meta: { title: "统计分析 - 直肠肿瘤辅助诊断系统" }
+            },
+            {
+                path: 'help',
+                component: () => import('../modules/dashboard/views/HelpView.vue'),
+                meta: { title: "使用帮助 - 直肠肿瘤辅助诊断系统" }
             }
         ]
     },

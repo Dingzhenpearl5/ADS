@@ -369,7 +369,7 @@ const goToStatistics = () => {
 }
 
 const openHelp = () => {
-  ElMessage.info('使用帮助功能开发中')
+  router.push('/help')
 }
 
 const viewRecord = (item) => {

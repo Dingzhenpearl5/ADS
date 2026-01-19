@@ -286,6 +286,85 @@
               </div>
             </div>
           </el-card>
+
+          <!-- 医生诊断记录卡片 -->
+          <el-card class="doctor-record-card" shadow="hover" v-if="url2">
+            <template #header>
+              <div class="card-header">
+                <el-icon><EditPen /></el-icon>
+                <span>医生诊断记录</span>
+                <el-tag size="small" :type="doctorRecord.isSaved ? 'success' : 'info'">
+                  {{ doctorRecord.isSaved ? '已保存' : '待填写' }}
+                </el-tag>
+              </div>
+            </template>
+
+            <el-form 
+              :model="doctorRecord" 
+              label-position="top" 
+              class="doctor-record-form"
+            >
+              <el-form-item label="诊断结论">
+                <el-select 
+                  v-model="doctorRecord.conclusion" 
+                  placeholder="请选择诊断结论"
+                  style="width: 100%"
+                >
+                  <el-option label="良性病变" value="良性病变" />
+                  <el-option label="恶性肿瘤" value="恶性肿瘤" />
+                  <el-option label="疑似恶性" value="疑似恶性" />
+                  <el-option label="待进一步检查" value="待进一步检查" />
+                  <el-option label="正常" value="正常" />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item label="诊断描述">
+                <el-input
+                  v-model="doctorRecord.diagnosis"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="请输入详细的诊断描述，包括病变位置、大小、形态特征等..."
+                  maxlength="1000"
+                  show-word-limit
+                />
+              </el-form-item>
+
+              <el-form-item label="治疗建议">
+                <el-input
+                  v-model="doctorRecord.suggestion"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="请输入治疗建议和后续处理方案..."
+                  maxlength="500"
+                  show-word-limit
+                />
+              </el-form-item>
+
+              <el-form-item>
+                <el-button 
+                  type="primary" 
+                  @click="saveDoctorRecordHandler"
+                  :loading="savingRecord"
+                  :disabled="!currentRecordId"
+                >
+                  <el-icon><Check /></el-icon>
+                  保存诊断记录
+                </el-button>
+                <el-button @click="clearDoctorRecord">
+                  <el-icon><RefreshLeft /></el-icon>
+                  清空
+                </el-button>
+              </el-form-item>
+            </el-form>
+
+            <div class="record-tips">
+              <el-alert type="info" :closable="false" show-icon>
+                <template #title>
+                  <span style="font-size: 12px;">诊断记录将与当前患者信息绑定保存</span>
+                </template>
+              </el-alert>
+            </div>
+          </el-card>
         </el-col>
 
         <!-- 右侧：特征分析 -->
@@ -408,11 +487,13 @@ import {
   User, Search, Operation, Upload, UploadFilled, VideoPlay,
   Picture, PictureFilled, MagicStick, DataAnalysis, Document,
   Close, InfoFilled, Refresh, Switch, FullScreen, Loading,
-  CircleCheck, Check, Cpu, Reading, Warning, Memo, Guide
+  CircleCheck, Check, Cpu, Reading, Warning, Memo, Guide,
+  EditPen, RefreshLeft
 } from '@element-plus/icons-vue'
 
 import { getPatientInfo } from '@/services/patient'
 import { startTask, uploadDcm } from '@/services/task'
+import { saveDoctorRecord } from '@/services/diagnosis'
 import { useAiPrediction } from '@/composables/useAiPrediction'
 
 const route = useRoute()
@@ -466,6 +547,16 @@ const aiAnalysisResult = ref({
   description: '',
   suggestions: [],
   analysisTime: ''
+})
+
+// 医生诊断记录状态
+const currentRecordId = ref(null)
+const savingRecord = ref(false)
+const doctorRecord = ref({
+  conclusion: '',
+  diagnosis: '',
+  suggestion: '',
+  isSaved: false
 })
 
 // Charts
@@ -662,6 +753,18 @@ const handleStartDiagnosis = async () => {
     if (res.status === 1) {
       url2.value = res.draw_url
       
+      // 保存诊断记录ID，用于后续保存医生记录
+      if (res.record_id) {
+        currentRecordId.value = res.record_id
+        // 重置医生记录表单
+        doctorRecord.value = {
+          conclusion: '',
+          diagnosis: '',
+          suggestion: '',
+          isSaved: false
+        }
+      }
+      
       if (res.image_info) {
         const info = res.image_info
         featureList.value = Object.entries(info).map(([key, value]) => ({
@@ -758,6 +861,50 @@ const regenerateAnalysis = () => {
     analysisTime: ''
   }
   startAiAnalysis()
+}
+
+// 医生诊断记录相关方法
+const saveDoctorRecordHandler = async () => {
+  if (!currentRecordId.value) {
+    ElMessage.warning('诊断记录不存在，请先完成AI诊断')
+    return
+  }
+  
+  if (!doctorRecord.value.conclusion && !doctorRecord.value.diagnosis && !doctorRecord.value.suggestion) {
+    ElMessage.warning('请至少填写一项诊断信息')
+    return
+  }
+  
+  savingRecord.value = true
+  
+  try {
+    const res = await saveDoctorRecord(currentRecordId.value, {
+      diagnosis_conclusion: doctorRecord.value.conclusion,
+      doctor_diagnosis: doctorRecord.value.diagnosis,
+      doctor_suggestion: doctorRecord.value.suggestion
+    })
+    
+    if (res.status === 1) {
+      doctorRecord.value.isSaved = true
+      ElMessage.success('诊断记录保存成功')
+    } else {
+      ElMessage.error(res.error || '保存失败')
+    }
+  } catch (e) {
+    console.error('保存诊断记录失败:', e)
+    ElMessage.error('保存失败: ' + (e.message || '网络错误'))
+  } finally {
+    savingRecord.value = false
+  }
+}
+
+const clearDoctorRecord = () => {
+  doctorRecord.value = {
+    conclusion: '',
+    diagnosis: '',
+    suggestion: '',
+    isSaved: false
+  }
 }
 
 const updateCharts = () => {
@@ -1200,6 +1347,42 @@ onUnmounted(() => {
 .analysis-time {
   font-size: 12px;
   color: #909399;
+}
+
+/* 医生诊断记录卡片 */
+.doctor-record-card {
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.doctor-record-form {
+  padding: 8px 0;
+}
+
+.doctor-record-form :deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #303133;
+}
+
+.doctor-record-form :deep(.el-textarea__inner) {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.doctor-record-form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.doctor-record-form :deep(.el-form-item:last-child) {
+  margin-bottom: 8px;
+}
+
+.record-tips {
+  margin-top: 8px;
+}
+
+.record-tips :deep(.el-alert) {
+  padding: 8px 12px;
 }
 
 /* 特征分析 */
