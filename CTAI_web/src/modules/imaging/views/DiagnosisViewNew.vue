@@ -187,6 +187,105 @@
               </el-button-group>
             </div>
           </el-card>
+
+          <!-- AI病情分析卡片 -->
+          <el-card class="ai-analysis-card" shadow="hover" v-if="url2">
+            <template #header>
+              <div class="card-header">
+                <el-icon><Reading /></el-icon>
+                <span>AI 病情分析</span>
+                <el-tag size="small" type="info" v-if="!aiAnalysisResult.conclusion">待分析</el-tag>
+                <el-tag size="small" type="success" v-else>已完成</el-tag>
+              </div>
+            </template>
+
+            <div class="ai-analysis-content">
+              <!-- 分析中状态 -->
+              <div v-if="isAnalyzing" class="analyzing-state">
+                <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+                <p>AI正在分析病情...</p>
+              </div>
+
+              <!-- 未分析状态 -->
+              <div v-else-if="!aiAnalysisResult.conclusion" class="empty-analysis">
+                <el-empty description="暂无AI病情分析" :image-size="100">
+                  <el-button type="primary" @click="startAiAnalysis" :loading="isAnalyzing">
+                    开始分析
+                  </el-button>
+                </el-empty>
+              </div>
+
+              <!-- 分析结果 -->
+              <div v-else class="analysis-result">
+                <div class="analysis-section">
+                  <h4 class="section-title">
+                    <el-icon><Document /></el-icon>
+                    诊断结论
+                  </h4>
+                  <div class="section-content">
+                    <el-alert 
+                      :type="aiAnalysisResult.riskLevel === '高' ? 'error' : aiAnalysisResult.riskLevel === '中' ? 'warning' : 'success'"
+                      :closable="false"
+                      show-icon
+                    >
+                      <template #title>
+                        <span style="font-weight: 600;">{{ aiAnalysisResult.conclusion }}</span>
+                      </template>
+                    </el-alert>
+                  </div>
+                </div>
+
+                <div class="analysis-section">
+                  <h4 class="section-title">
+                    <el-icon><Warning /></el-icon>
+                    风险等级
+                  </h4>
+                  <div class="section-content">
+                    <el-tag 
+                      :type="aiAnalysisResult.riskLevel === '高' ? 'danger' : aiAnalysisResult.riskLevel === '中' ? 'warning' : 'success'"
+                      size="large"
+                      effect="dark"
+                    >
+                      {{ aiAnalysisResult.riskLevel }}风险
+                    </el-tag>
+                    <span class="risk-score">置信度: {{ aiAnalysisResult.confidence }}%</span>
+                  </div>
+                </div>
+
+                <div class="analysis-section">
+                  <h4 class="section-title">
+                    <el-icon><Memo /></el-icon>
+                    详细描述
+                  </h4>
+                  <div class="section-content description-text">
+                    {{ aiAnalysisResult.description }}
+                  </div>
+                </div>
+
+                <div class="analysis-section">
+                  <h4 class="section-title">
+                    <el-icon><Guide /></el-icon>
+                    建议措施
+                  </h4>
+                  <div class="section-content">
+                    <ul class="suggestion-list">
+                      <li v-for="(item, index) in aiAnalysisResult.suggestions" :key="index">
+                        {{ item }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="analysis-footer">
+                  <el-button size="small" @click="regenerateAnalysis">
+                    <el-icon><Refresh /></el-icon>
+                    重新分析
+                  </el-button>
+                  <span class="analysis-time">分析时间: {{ aiAnalysisResult.analysisTime }}</span>
+                </div>
+              </div>
+            </div>
+          </el-card>
         </el-col>
 
         <!-- 右侧：特征分析 -->
@@ -309,7 +408,7 @@ import {
   User, Search, Operation, Upload, UploadFilled, VideoPlay,
   Picture, PictureFilled, MagicStick, DataAnalysis, Document,
   Close, InfoFilled, Refresh, Switch, FullScreen, Loading,
-  CircleCheck, Check, Cpu
+  CircleCheck, Check, Cpu, Reading, Warning, Memo, Guide
 } from '@element-plus/icons-vue'
 
 import { getPatientInfo } from '@/services/patient'
@@ -357,6 +456,17 @@ const featureList = ref([])
 const areaData = ref(0)
 const perimeterData = ref(0)
 const activeTab = ref('features')
+
+// AI病情分析状态
+const isAnalyzing = ref(false)
+const aiAnalysisResult = ref({
+  conclusion: '',
+  riskLevel: '',
+  confidence: 0,
+  description: '',
+  suggestions: [],
+  analysisTime: ''
+})
 
 // Charts
 let areaChart = null
@@ -587,6 +697,67 @@ const fullscreenPreview = () => {
   // 触发图片预览
   const imgEl = document.querySelector('.ct-image .el-image__inner')
   imgEl?.click()
+}
+
+// AI病情分析相关方法
+const startAiAnalysis = async () => {
+  if (!url2.value) {
+    ElMessage.warning('请先完成AI诊断')
+    return
+  }
+  
+  isAnalyzing.value = true
+  
+  try {
+    // 模拟AI分析过程，实际应调用后端API
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // TODO: 替换为实际的API调用
+    // const res = await analyzeCondition({ imageUrl: url2.value, features: featureList.value })
+    
+    // 模拟返回结果
+    const mockResult = {
+      conclusion: '检测到直肠肿瘤病变，建议进一步检查',
+      riskLevel: '中',
+      confidence: 87.5,
+      description: '根据影像分析，在直肠区域检测到异常组织增生。肿瘤边界相对清晰，大小约为' + areaData.value.toFixed(2) + 'px²。组织密度异常，与周围正常组织存在明显差异。建议结合病理检查进行综合评估。',
+      suggestions: [
+        '建议尽快进行肠镜检查以确认病变性质',
+        '建议进行病理活检以明确肿瘤类型',
+        '建议完善CT增强扫描评估淋巴结情况',
+        '建议咨询肛肠外科专家制定治疗方案',
+        '定期复查监测病情变化'
+      ],
+      analysisTime: new Date().toLocaleString('zh-CN', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    }
+    
+    aiAnalysisResult.value = mockResult
+    ElMessage.success('AI病情分析完成')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('AI分析失败: ' + (e.message || '未知错误'))
+  } finally {
+    isAnalyzing.value = false
+  }
+}
+
+const regenerateAnalysis = () => {
+  aiAnalysisResult.value = {
+    conclusion: '',
+    riskLevel: '',
+    confidence: 0,
+    description: '',
+    suggestions: [],
+    analysisTime: ''
+  }
+  startAiAnalysis()
 }
 
 const updateCharts = () => {
@@ -923,6 +1094,112 @@ onUnmounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: center;
+}
+
+/* AI病情分析卡片 */
+.ai-analysis-card {
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.ai-analysis-card .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ai-analysis-content {
+  min-height: 200px;
+}
+
+.analyzing-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+}
+
+.analyzing-state .el-icon {
+  color: #409eff;
+}
+
+.analyzing-state p {
+  margin: 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.empty-analysis {
+  padding: 20px;
+}
+
+.analysis-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analysis-section {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.section-content {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.risk-score {
+  margin-left: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+
+.description-text {
+  text-align: justify;
+}
+
+.suggestion-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.suggestion-list li {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.suggestion-list li:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+  margin-top: 4px;
+}
+
+.analysis-time {
+  font-size: 12px;
+  color: #909399;
 }
 
 /* 特征分析 */
