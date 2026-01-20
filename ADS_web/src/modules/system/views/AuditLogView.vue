@@ -370,11 +370,11 @@ const fetchLogs = async () => {
     })
     
     const res = await request.get('/api/audit-logs', { params })
-    if (res.data.status === 1) {
-      logs.value = res.data.data.list
-      pagination.total = res.data.data.total
+    if (res.status === 1) {
+      logs.value = res.data.list
+      pagination.total = res.data.total
     } else {
-      ElMessage.error(res.data.error || '获取日志失败')
+      ElMessage.error(res.error || '获取日志失败')
     }
   } catch (error) {
     ElMessage.error('获取日志失败')
@@ -388,8 +388,8 @@ const fetchLogs = async () => {
 const fetchStats = async () => {
   try {
     const res = await request.get('/api/audit-logs/stats')
-    if (res.data.status === 1) {
-      stats.value = res.data.data
+    if (res.status === 1) {
+      stats.value = res.data
     }
   } catch (error) {
     console.error('获取统计失败', error)

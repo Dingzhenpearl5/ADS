@@ -60,6 +60,11 @@ const routes = [
                 path: 'audit-logs',
                 component: () => import('../modules/system/views/AuditLogView.vue'),
                 meta: { title: "审计日志 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
+            },
+            {
+                path: 'users',
+                component: () => import('../modules/system/views/UserManageView.vue'),
+                meta: { title: "用户管理 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
             }
         ]
     },

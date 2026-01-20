@@ -5,6 +5,7 @@ import shutil
 from datetime import timedelta
 import hashlib
 import uuid
+import json
 
 import torch
 from flask import *
@@ -67,6 +68,9 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(50))
     role = db.Column(db.String(20))
+    status = db.Column(db.String(20), default='active')  # active/disabled
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
 # Token模型
 class Token(db.Model):
@@ -471,6 +475,10 @@ def login():
             db.session.add(LoginAttempt(username=username, success=False, ip_address=ip_address))
             db.session.commit()
             return jsonify({'status': 0, 'error': '用户名或密码错误'})
+        
+        # 检查用户是否被禁用
+        if user.status == 'disabled':
+            return jsonify({'status': 0, 'error': '账户已被禁用，请联系管理员'})
         
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         if user.password != password_hash:
@@ -1090,6 +1098,295 @@ def admin_required(f):
             
         return f(*args, **kwargs)
     return decorated
+
+
+# ==================== 用户管理 API ====================
+
+@app.route('/api/users', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_users():
+    """获取用户列表"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        role = request.args.get('role')
+        status = request.args.get('status')
+        keyword = request.args.get('keyword')
+        
+        query = User.query
+        
+        if role:
+            query = query.filter_by(role=role)
+        if status:
+            query = query.filter_by(status=status)
+        if keyword:
+            query = query.filter(
+                db.or_(
+                    User.username.like(f'%{keyword}%'),
+                    User.name.like(f'%{keyword}%')
+                )
+            )
+        
+        query = query.order_by(User.id.desc())
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        users = []
+        for user in pagination.items:
+            users.append({
+                'id': user.id,
+                'username': user.username,
+                'name': user.name,
+                'role': user.role,
+                'status': user.status or 'active',
+                'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
+                'updated_at': user.updated_at.strftime('%Y-%m-%d %H:%M:%S') if user.updated_at else None
+            })
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'list': users,
+                'total': pagination.total,
+                'page': page,
+                'per_page': per_page,
+                'pages': pagination.pages
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users', methods=['POST', 'OPTIONS'])
+@admin_required
+def create_user():
+    """创建用户"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        name = data.get('name')
+        role = data.get('role', 'doctor')
+        
+        if not username or not password:
+            return jsonify({'status': 0, 'error': '用户名和密码不能为空'})
+        
+        # 检查用户名是否已存在
+        if User.query.filter_by(username=username).first():
+            return jsonify({'status': 0, 'error': '用户名已存在'})
+        
+        # 创建用户
+        user = User(
+            username=username,
+            password=hashlib.sha256(password.encode()).hexdigest(),
+            name=name or username,
+            role=role,
+            status='active'
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        # 记录审计日志
+        log_audit('create', 'user', target=username, detail=json.dumps({'name': name, 'role': role}))
+        
+        return jsonify({
+            'status': 1,
+            'message': '用户创建成功',
+            'data': {
+                'id': user.id,
+                'username': user.username,
+                'name': user.name,
+                'role': user.role
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users/<int:user_id>', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_user(user_id):
+    """获取用户详情"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'status': 0, 'error': '用户不存在'})
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'id': user.id,
+                'username': user.username,
+                'name': user.name,
+                'role': user.role,
+                'status': user.status or 'active',
+                'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
+                'updated_at': user.updated_at.strftime('%Y-%m-%d %H:%M:%S') if user.updated_at else None
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users/<int:user_id>', methods=['PUT', 'OPTIONS'])
+@admin_required
+def update_user(user_id):
+    """更新用户信息"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'status': 0, 'error': '用户不存在'})
+        
+        # 不允许修改管理员账户
+        if user.role == 'admin':
+            return jsonify({'status': 0, 'error': '不能修改管理员账户'})
+        
+        data = request.get_json()
+        
+        # 更新字段
+        if 'name' in data:
+            user.name = data['name']
+        if 'role' in data and data['role'] in ['doctor', 'admin']:
+            user.role = data['role']
+        if 'password' in data and data['password']:
+            user.password = hashlib.sha256(data['password'].encode()).hexdigest()
+        
+        db.session.commit()
+        
+        # 记录审计日志
+        log_audit('update', 'user', target=user.username, detail=json.dumps({'updated_fields': list(data.keys())}))
+        
+        return jsonify({
+            'status': 1,
+            'message': '用户更新成功'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users/<int:user_id>/status', methods=['PUT', 'OPTIONS'])
+@admin_required
+def toggle_user_status(user_id):
+    """切换用户状态（启用/禁用）"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'status': 0, 'error': '用户不存在'})
+        
+        # 不允许禁用管理员账户
+        if user.role == 'admin':
+            return jsonify({'status': 0, 'error': '不能禁用管理员账户'})
+        
+        data = request.get_json()
+        new_status = data.get('status', 'disabled' if user.status == 'active' else 'active')
+        
+        user.status = new_status
+        db.session.commit()
+        
+        # 如果禁用用户，清除其所有token
+        if new_status == 'disabled':
+            Token.query.filter_by(username=user.username).delete()
+            db.session.commit()
+        
+        # 记录审计日志
+        action = 'disable' if new_status == 'disabled' else 'enable'
+        log_audit(action, 'user', target=user.username)
+        
+        return jsonify({
+            'status': 1,
+            'message': f'用户已{"禁用" if new_status == "disabled" else "启用"}',
+            'data': {'status': new_status}
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE', 'OPTIONS'])
+@admin_required
+def delete_user(user_id):
+    """删除用户"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'status': 0, 'error': '用户不存在'})
+        
+        # 不允许删除管理员账户
+        if user.role == 'admin':
+            return jsonify({'status': 0, 'error': '不能删除管理员账户'})
+        
+        username = user.username
+        
+        # 删除用户的token
+        Token.query.filter_by(username=username).delete()
+        
+        # 删除用户
+        db.session.delete(user)
+        db.session.commit()
+        
+        # 记录审计日志
+        log_audit('delete', 'user', target=username)
+        
+        return jsonify({
+            'status': 1,
+            'message': '用户删除成功'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/users/<int:user_id>/reset-password', methods=['POST', 'OPTIONS'])
+@admin_required
+def reset_user_password(user_id):
+    """重置用户密码"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'status': 0, 'error': '用户不存在'})
+        
+        data = request.get_json()
+        new_password = data.get('password', '123456')  # 默认密码
+        
+        user.password = hashlib.sha256(new_password.encode()).hexdigest()
+        db.session.commit()
+        
+        # 清除用户的token，强制重新登录
+        Token.query.filter_by(username=user.username).delete()
+        db.session.commit()
+        
+        # 记录审计日志
+        log_audit('reset_password', 'user', target=user.username)
+        
+        return jsonify({
+            'status': 1,
+            'message': '密码重置成功'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
 
 
 @app.route('/api/settings', methods=['GET', 'OPTIONS'])

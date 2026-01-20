@@ -58,6 +58,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item :icon="User" command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item :icon="Avatar" command="users" v-if="isAdmin">用户管理</el-dropdown-item>
                 <el-dropdown-item :icon="Setting" command="settings" v-if="isAdmin">系统设置</el-dropdown-item>
                 <el-dropdown-item :icon="Bell" command="announcements" v-if="isAdmin">公告管理</el-dropdown-item>
                 <el-dropdown-item :icon="Notebook" command="audit-logs" v-if="isAdmin">审计日志</el-dropdown-item>
@@ -80,6 +81,7 @@ import {
   UserFilled,
   ArrowDown,
   User,
+  Avatar,
   Setting,
   SwitchButton,
   Download,
@@ -163,6 +165,8 @@ const handleCommand = (command) => {
     router.push('/announcements')
   } else if (command === 'audit-logs') {
     router.push('/audit-logs')
+  } else if (command === 'users') {
+    router.push('/users')
   } else if (command === 'help') {
     router.push('/help')
   } else if (command === 'profile') {

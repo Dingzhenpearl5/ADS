@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名',
     password VARCHAR(255) NOT NULL COMMENT '密码(SHA256加密)',
     name VARCHAR(50) COMMENT '姓名',
-    role VARCHAR(20) COMMENT '角色: admin/doctor'
+    role VARCHAR(20) COMMENT '角色: admin/doctor',
+    status VARCHAR(20) DEFAULT 'active' COMMENT '状态: active/disabled',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- ============================================================
