@@ -159,6 +159,74 @@ class Announcement(db.Model):
     
     author = db.relationship('User', backref=db.backref('announcements', lazy=True))
 
+# 审计日志模型
+class AuditLog(db.Model):
+    """系统审计日志"""
+    __tablename__ = 'audit_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), db.ForeignKey('users.username'), nullable=True)  # 操作用户
+    action = db.Column(db.String(50), nullable=False)  # 操作类型：login/logout/create/update/delete/export/upload等
+    module = db.Column(db.String(50), nullable=False)  # 模块：auth/settings/announcement/diagnosis/patient等
+    target = db.Column(db.String(255))  # 操作目标（如：公告ID、患者ID等）
+    detail = db.Column(db.Text)  # 详细信息（JSON格式）
+    ip_address = db.Column(db.String(50))  # IP地址
+    user_agent = db.Column(db.String(500))  # 浏览器信息
+    status = db.Column(db.String(20), default='success')  # 状态：success/fail
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    
+    user = db.relationship('User', backref=db.backref('audit_logs', lazy=True))
+
+
+def log_audit(action, module, target=None, detail=None, status='success', username=None):
+    """
+    记录审计日志的辅助函数
+    :param action: 操作类型 (login/logout/create/update/delete/export/upload/view)
+    :param module: 模块名称 (auth/settings/announcement/diagnosis/patient/system)
+    :param target: 操作目标
+    :param detail: 详细信息（字典或字符串）
+    :param status: 状态 (success/fail)
+    :param username: 用户名（如果不传则自动从token获取）
+    """
+    try:
+        # 获取用户名
+        if not username:
+            token = request.headers.get('Authorization')
+            if token and token.startswith('Bearer '):
+                token = token[7:]
+                token_record = Token.query.filter_by(token=token).first()
+                if token_record:
+                    username = token_record.username
+        
+        # 获取IP地址
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ip_address and ',' in ip_address:
+            ip_address = ip_address.split(',')[0].strip()
+        
+        # 获取User-Agent
+        user_agent = request.headers.get('User-Agent', '')[:500]
+        
+        # 处理detail
+        if detail and isinstance(detail, dict):
+            import json
+            detail = json.dumps(detail, ensure_ascii=False)
+        
+        audit_log = AuditLog(
+            username=username,
+            action=action,
+            module=module,
+            target=str(target) if target else None,
+            detail=detail,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            status=status
+        )
+        db.session.add(audit_log)
+        db.session.commit()
+    except Exception as e:
+        print(f"[Audit] 记录审计日志失败: {e}")
+        # 不抛出异常，避免影响主业务
+
+
 def init_db():
     """初始化数据库：创建表并添加默认用户"""
     with app.app_context():
@@ -426,6 +494,9 @@ def login():
         db.session.add(LoginAttempt(username=username, success=True, ip_address=ip_address))
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('login', 'auth', target=username, detail={'role': user.role}, username=username)
+        
         print(f"[Login] 用户 {username} 登录成功")
         
         return jsonify({
@@ -531,6 +602,8 @@ def logout():
             token_record = Token.query.filter_by(token=token).first()
             if token_record:
                 username = token_record.username
+                # 记录审计日志（在删除token前记录）
+                log_audit('logout', 'auth', target=username, username=username)
                 db.session.delete(token_record)
                 db.session.commit()
                 print(f"[Logout] 用户 {username} 已登出")
@@ -1096,6 +1169,9 @@ def update_settings():
         
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('update', 'settings', detail={'updated_count': updated_count, 'keys': list(settings.keys())})
+        
         return jsonify({
             'status': 1,
             'message': f'成功更新 {updated_count} 项设置'
@@ -1176,6 +1252,9 @@ def reset_settings():
         
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('reset', 'settings', detail={'category': category or 'all', 'reset_count': reset_count})
+        
         return jsonify({
             'status': 1,
             'message': f'成功重置 {reset_count} 项设置'
@@ -1183,6 +1262,227 @@ def reset_settings():
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+# ==================== 审计日志 API ====================
+
+@app.route('/api/audit-logs', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_audit_logs():
+    """获取审计日志列表"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        # 获取查询参数
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        username = request.args.get('username')
+        action = request.args.get('action')
+        module = request.args.get('module')
+        status = request.args.get('status')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        keyword = request.args.get('keyword')
+        
+        query = AuditLog.query
+        
+        # 筛选条件
+        if username:
+            query = query.filter(AuditLog.username.like(f'%{username}%'))
+        if action:
+            query = query.filter_by(action=action)
+        if module:
+            query = query.filter_by(module=module)
+        if status:
+            query = query.filter_by(status=status)
+        if start_date:
+            try:
+                start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+                query = query.filter(AuditLog.created_at >= start)
+            except:
+                pass
+        if end_date:
+            try:
+                end = datetime.datetime.strptime(end_date, '%Y-%m-%d') + datetime.timedelta(days=1)
+                query = query.filter(AuditLog.created_at < end)
+            except:
+                pass
+        if keyword:
+            query = query.filter(
+                db.or_(
+                    AuditLog.target.like(f'%{keyword}%'),
+                    AuditLog.detail.like(f'%{keyword}%')
+                )
+            )
+        
+        # 按时间倒序
+        query = query.order_by(AuditLog.created_at.desc())
+        
+        # 分页
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        logs = []
+        for log in pagination.items:
+            logs.append({
+                'id': log.id,
+                'username': log.username,
+                'action': log.action,
+                'module': log.module,
+                'target': log.target,
+                'detail': log.detail,
+                'ip_address': log.ip_address,
+                'status': log.status,
+                'created_at': log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else None
+            })
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'list': logs,
+                'total': pagination.total,
+                'page': page,
+                'per_page': per_page,
+                'pages': pagination.pages
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/audit-logs/stats', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_audit_stats():
+    """获取审计日志统计信息"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        # 总日志数
+        total = AuditLog.query.count()
+        
+        # 今日日志数
+        today = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_count = AuditLog.query.filter(AuditLog.created_at >= today).count()
+        
+        # 按模块统计
+        module_stats = db.session.query(
+            AuditLog.module, 
+            db.func.count(AuditLog.id)
+        ).group_by(AuditLog.module).all()
+        
+        # 按操作类型统计
+        action_stats = db.session.query(
+            AuditLog.action, 
+            db.func.count(AuditLog.id)
+        ).group_by(AuditLog.action).all()
+        
+        # 最近7天趋势
+        seven_days_ago = today - datetime.timedelta(days=6)
+        daily_stats = db.session.query(
+            db.func.date(AuditLog.created_at).label('date'),
+            db.func.count(AuditLog.id)
+        ).filter(
+            AuditLog.created_at >= seven_days_ago
+        ).group_by(
+            db.func.date(AuditLog.created_at)
+        ).all()
+        
+        # 活跃用户统计（最近7天）
+        active_users = db.session.query(
+            AuditLog.username,
+            db.func.count(AuditLog.id).label('count')
+        ).filter(
+            AuditLog.created_at >= seven_days_ago,
+            AuditLog.username.isnot(None)
+        ).group_by(
+            AuditLog.username
+        ).order_by(
+            db.func.count(AuditLog.id).desc()
+        ).limit(10).all()
+        
+        return jsonify({
+            'status': 1,
+            'data': {
+                'total': total,
+                'today_count': today_count,
+                'module_stats': [{'module': m, 'count': c} for m, c in module_stats],
+                'action_stats': [{'action': a, 'count': c} for a, c in action_stats],
+                'daily_stats': [{'date': str(d), 'count': c} for d, c in daily_stats],
+                'active_users': [{'username': u, 'count': c} for u, c in active_users]
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)})
+
+
+@app.route('/api/audit-logs/export', methods=['GET', 'OPTIONS'])
+@admin_required
+def export_audit_logs():
+    """导出审计日志（CSV格式）"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        import csv
+        import io
+        
+        # 获取筛选参数
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = AuditLog.query
+        
+        if start_date:
+            try:
+                start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+                query = query.filter(AuditLog.created_at >= start)
+            except:
+                pass
+        if end_date:
+            try:
+                end = datetime.datetime.strptime(end_date, '%Y-%m-%d') + datetime.timedelta(days=1)
+                query = query.filter(AuditLog.created_at < end)
+            except:
+                pass
+        
+        logs = query.order_by(AuditLog.created_at.desc()).limit(10000).all()
+        
+        # 创建CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['ID', '用户名', '操作类型', '模块', '目标', '详情', 'IP地址', '状态', '时间'])
+        
+        for log in logs:
+            writer.writerow([
+                log.id,
+                log.username or '',
+                log.action,
+                log.module,
+                log.target or '',
+                log.detail or '',
+                log.ip_address or '',
+                log.status,
+                log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else ''
+            ])
+        
+        output.seek(0)
+        
+        # 记录导出操作
+        log_audit('export', 'audit', detail=f'导出审计日志 {len(logs)} 条')
+        
+        return Response(
+            output.getvalue().encode('utf-8-sig'),
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=audit_logs_{datetime.datetime.now().strftime("%Y%m%d")}.csv'
+            }
+        )
+        
+    except Exception as e:
         return jsonify({'status': 0, 'error': str(e)})
 
 
@@ -1291,6 +1591,9 @@ def create_announcement():
         db.session.add(announcement)
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('create', 'announcement', target=announcement.id, detail={'title': title})
+        
         return jsonify({
             'status': 1,
             'message': '公告创建成功',
@@ -1355,6 +1658,9 @@ def update_announcement(id):
         
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('update', 'announcement', target=id, detail={'title': announcement.title})
+        
         return jsonify({
             'status': 1,
             'message': '公告更新成功'
@@ -1378,6 +1684,9 @@ def publish_announcement(id):
         announcement.published_at = datetime.datetime.now()
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('publish', 'announcement', target=id, detail={'title': announcement.title})
+        
         return jsonify({
             'status': 1,
             'message': '公告已发布'
@@ -1400,6 +1709,9 @@ def archive_announcement(id):
         announcement.status = 'archived'
         db.session.commit()
         
+        # 记录审计日志
+        log_audit('archive', 'announcement', target=id, detail={'title': announcement.title})
+        
         return jsonify({
             'status': 1,
             'message': '公告已下架'
@@ -1419,8 +1731,12 @@ def delete_announcement(id):
         if not announcement:
             return jsonify({'status': 0, 'error': '公告不存在'})
         
+        title = announcement.title  # 保存标题用于日志
         db.session.delete(announcement)
         db.session.commit()
+        
+        # 记录审计日志
+        log_audit('delete', 'announcement', target=id, detail={'title': title})
         
         return jsonify({
             'status': 1,

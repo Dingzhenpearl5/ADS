@@ -60,6 +60,7 @@
                 <el-dropdown-item :icon="User" command="profile">个人中心</el-dropdown-item>
                 <el-dropdown-item :icon="Setting" command="settings" v-if="isAdmin">系统设置</el-dropdown-item>
                 <el-dropdown-item :icon="Bell" command="announcements" v-if="isAdmin">公告管理</el-dropdown-item>
+                <el-dropdown-item :icon="Notebook" command="audit-logs" v-if="isAdmin">审计日志</el-dropdown-item>
                 <el-dropdown-item :icon="QuestionFilled" command="help">使用帮助</el-dropdown-item>
                 <el-dropdown-item :icon="SwitchButton" command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
@@ -85,7 +86,8 @@ import {
   Upload,
   Monitor,
   QuestionFilled,
-  Bell
+  Bell,
+  Notebook
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/authStore'
 
@@ -159,6 +161,8 @@ const handleCommand = (command) => {
     router.push('/settings')
   } else if (command === 'announcements') {
     router.push('/announcements')
+  } else if (command === 'audit-logs') {
+    router.push('/audit-logs')
   } else if (command === 'help') {
     router.push('/help')
   } else if (command === 'profile') {

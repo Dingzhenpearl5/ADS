@@ -55,6 +55,11 @@ const routes = [
                 path: 'announcements',
                 component: () => import('../modules/system/views/AnnouncementView.vue'),
                 meta: { title: "公告管理 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
+            },
+            {
+                path: 'audit-logs',
+                component: () => import('../modules/system/views/AuditLogView.vue'),
+                meta: { title: "审计日志 - 直肠肿瘤辅助诊断系统", requiresAdmin: true }
             }
         ]
     },
