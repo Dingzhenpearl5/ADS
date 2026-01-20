@@ -181,3 +181,6 @@ Thumbs.db
 *.bak
 *.tmp
 *.old
+# Project specific
+README.md
+ADS_flask/requirements.txt
