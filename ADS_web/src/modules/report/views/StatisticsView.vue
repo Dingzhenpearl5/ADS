@@ -181,12 +181,15 @@ const checkSystemHealth = async () => {
   checking.value = true
   try {
     const res = await healthCheck()
-    if (res.data.status === 'healthy') {
+    // 后端返回格式: { status: 1, data: { database: "正常", model: "...", server: "..." } }
+    if (res.status === 1) {
       systemStatus.backend = true
-      systemStatus.model = res.data.model_loaded || false
-      systemStatus.database = res.data.database === 'connected'
+      systemStatus.model = res.data.model && !res.data.model.includes('未加载')
+      systemStatus.database = res.data.database === '正常'
       systemStatus.checkTime = new Date().toLocaleString('zh-CN')
-      ElMessage.success('系统状态正常')
+      ElMessage.success('系统状态检查完成')
+    } else {
+      throw new Error(res.error || '检查失败')
     }
   } catch (error) {
     console.error('健康检查失败:', error)
