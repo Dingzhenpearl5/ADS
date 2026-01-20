@@ -7,7 +7,7 @@ import torch
 from torch.utils import data
 from torch.utils.data import random_split
 
-train_data_path = 'C:/Users/Masoa/OneDrive/work/CTAI/src/data'
+train_data_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/data'
 test_data_path = '../data/test/'
 
 

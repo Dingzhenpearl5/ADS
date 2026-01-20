@@ -145,9 +145,9 @@ Thumbs.db
 # Project specific ignores
 毕设/
 /src/
-CTAI_flask/tmp/
-CTAI_flask/uploads/
-CTAI_flask/data/
+ADS_flask/tmp/
+ADS_flask/uploads/
+ADS_flask/data/
 *.dcm
 *.onnx
 *.trt

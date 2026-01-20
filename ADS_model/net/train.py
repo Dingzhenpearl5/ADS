@@ -33,7 +33,7 @@ rate = 0.50
 learn_rate = 0.001
 epochs = 50  # 正式训练：50个epoch
 # train_dataset_path = '../data/all/d1/'
-train_dataset_path = 'C:/Users/Masoa/OneDrive/work/CTAI/src/train'  # 修复：使用正确的数据路径
+train_dataset_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/train'  # 修复：使用正确的数据路径
 
 train_dataset, test_dataset = make.get_d1(train_dataset_path)
 unet = unet.Unet(1, 1).to(device).apply(weights_init)

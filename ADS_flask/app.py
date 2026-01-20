@@ -53,7 +53,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # 请修改为您本地MySQL数据库的实际连接信息
 # 格式: mysql+pymysql://用户名:密码@主机:端口/数据库名
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost/ctai_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost/ads_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_recycle': 280}
 
@@ -308,8 +308,8 @@ def init_db():
             db.session.commit()
             print("[DB] 数据库初始化完成")
         except Exception as e:
-            print(f"[DB] 数据库初始化失败: {e}")
-            print("提示: 请确保MySQL服务已启动，且数据库 'ctai_db' 已存在")
+            print("[DB] 数据库初始化失败: {e}")
+            print("提示: 请确保MySQL服务已启动，且数据库 'ads_db' 已存在")
 
 werkzeug_logger = rel_log.getLogger('werkzeug')
 werkzeug_logger.setLevel(rel_log.ERROR)

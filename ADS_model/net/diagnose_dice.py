@@ -10,7 +10,7 @@ print("=" * 60)
 print("数据加载诊断")
 print("=" * 60)
 
-data_path = 'C:/Users/Masoa/OneDrive/work/CTAI/src/train'
+data_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/train'
 train_dataset, test_dataset = make.get_d1(data_path)
 
 print(f"训练集大小: {len(train_dataset)}")

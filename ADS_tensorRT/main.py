@@ -5,7 +5,7 @@ import pycuda.autoinit
 import numpy as np
 from PIL import Image
 
-from CTAI_tensorRT.to_oonx import data_in_one
+from ADS_tensorRT.to_oonx import data_in_one
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 

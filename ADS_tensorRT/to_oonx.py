@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from CTAI_model.net import unet
+from ADS_model.net import unet
 import SimpleITK as sitk
 
 device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")

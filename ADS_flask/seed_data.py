@@ -162,5 +162,5 @@ except Exception as e:
     traceback.print_exc()
     print("\n请确保:")
     print("1. MySQL服务已启动")
-    print("2. 数据库 'ctai_db' 已创建")
+    print("2. 数据库 'ads_db' 已创建")
     print("3. 数据库连接信息正确")

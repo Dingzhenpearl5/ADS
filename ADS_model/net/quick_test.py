@@ -4,7 +4,7 @@ sys.path.append("..")
 from data_set import make
 
 print("开始加载数据...")
-train_dataset_path = 'C:/Users/Masoa/OneDrive/work/CTAI/src/train'
+train_dataset_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/train'
 
 try:
     train_dataset, test_dataset = make.get_d1(train_dataset_path)

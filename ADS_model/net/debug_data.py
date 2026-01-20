@@ -5,7 +5,7 @@ import torch
 from data_set import make
 import numpy as np
 
-data_path = 'C:/Users/Masoa/OneDrive/work/CTAI/src/data'
+data_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/data'
 train_dataset, test_dataset = make.get_d1(data_path)
 
 print(f"训练集大小: {len(train_dataset)}")

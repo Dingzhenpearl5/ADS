@@ -2,7 +2,7 @@ import requests
 import traceback
 
 url = 'http://127.0.0.1:5003/upload'
-test_file = r'C:\Users\Masoa\OneDrive\work\CTAI\CTAI_flask\data\20014.dcm'
+test_file = r'C:\Users\Masoa\OneDrive\work\ADS\ADS_flask\data\20014.dcm'
 
 print("="*60)
 print("调试文件上传")
