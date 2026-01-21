@@ -161,6 +161,10 @@
                   <el-icon><VideoPlay /></el-icon>
                   为该患者进行诊断
                 </el-button>
+                <el-button type="info" plain @click="clearQueriedPatient">
+                  <el-icon><Close /></el-icon>
+                  清除
+                </el-button>
               </div>
             </div>
           </div>
@@ -395,7 +399,7 @@ import { ElMessage } from 'element-plus'
 import {
   VideoPlay, Document, TrendCharts, Calendar, CircleCheck, Clock,
   Notebook, Cpu, ArrowRight, Select, Grid, DataAnalysis, 
-  QuestionFilled, Timer, Search, User
+  QuestionFilled, Timer, Search, User, Close
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/authStore'
 import { getStatistics, getDiagnosisHistory } from '@/services/statistics'
@@ -488,6 +492,9 @@ const queryPatientInfo = async () => {
         phone: d['电话'] || '未知',
         part: d['部位'] || '直肠'
       }
+      // 保存到 sessionStorage，离开页面后再回来信息还在
+      sessionStorage.setItem('queriedPatient', JSON.stringify(queriedPatient.value))
+      sessionStorage.setItem('queryPatientId', queryPatientId.value)
       ElMessage.success('患者信息查询成功')
       // 查询该患者的诊断历史
       await fetchPatientDiagnosis()
@@ -514,6 +521,8 @@ const fetchPatientDiagnosis = async () => {
         part: queriedPatient.value.part || '直肠',
         time: item.created_at || '未知时间'
       }))
+      // 保存诊断列表到 sessionStorage
+      sessionStorage.setItem('patientDiagnosisList', JSON.stringify(patientDiagnosisList.value))
     }
   } catch (error) {
     console.error('获取患者诊断历史失败:', error)
@@ -620,12 +629,41 @@ const formatTime = (time) => {
   return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
+// 恢复之前查询的患者信息（从 sessionStorage）
+const restoreQueriedPatient = () => {
+  const savedPatient = sessionStorage.getItem('queriedPatient')
+  const savedPatientId = sessionStorage.getItem('queryPatientId')
+  const savedDiagnosisList = sessionStorage.getItem('patientDiagnosisList')
+  
+  if (savedPatient) {
+    queriedPatient.value = JSON.parse(savedPatient)
+  }
+  if (savedPatientId) {
+    queryPatientId.value = savedPatientId
+  }
+  if (savedDiagnosisList) {
+    patientDiagnosisList.value = JSON.parse(savedDiagnosisList)
+  }
+}
+
+// 清除当前患者信息
+const clearQueriedPatient = () => {
+  queriedPatient.value = null
+  queryPatientId.value = ''
+  patientDiagnosisList.value = []
+  sessionStorage.removeItem('queriedPatient')
+  sessionStorage.removeItem('queryPatientId')
+  sessionStorage.removeItem('patientDiagnosisList')
+  sessionStorage.removeItem('currentPatientId')
+}
+
 onMounted(() => {
   updateDateTime()
   setInterval(updateDateTime, 60000) // 每分钟更新一次
   initDismissedIds() // 初始化用户已关闭的公告列表
   fetchStatistics() // 获取统计数据（仅管理员）
   fetchAnnouncements() // 获取系统公告
+  restoreQueriedPatient() // 恢复之前查询的患者信息
 })
 </script>
 
