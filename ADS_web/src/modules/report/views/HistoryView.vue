@@ -41,8 +41,20 @@
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>诊断历史记录</span>
-          <el-tag type="info">共 {{ pagination.total }} 条记录</el-tag>
+          <div class="header-left">
+            <span>诊断历史记录</span>
+            <el-tag type="info" style="margin-left: 10px;">共 {{ pagination.total }} 条记录</el-tag>
+          </div>
+          <div class="header-right">
+            <el-button 
+              type="warning" 
+              :disabled="selectedRows.length < 2"
+              @click="openCompareDialog"
+            >
+              <el-icon><DataLine /></el-icon>
+              对比分析 ({{ selectedRows.length }})
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -58,12 +70,15 @@
       <!-- 表格内容 -->
       <template v-else>
         <el-table 
+          ref="tableRef"
           :data="historyList" 
           v-loading="loading"
           stripe
           border
           style="width: 100%"
+          @selection-change="handleSelectionChange"
         >
+          <el-table-column type="selection" width="55" align="center" />
           <el-table-column prop="id" label="ID" width="80" align="center" />
           <el-table-column prop="patient_id" label="患者ID" width="120" align="center" />
           <el-table-column prop="doctor" label="诊断医生" width="120" align="center" />
@@ -172,6 +187,12 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 对比分析弹窗 -->
+    <CompareDialog 
+      v-model="compareVisible" 
+      :selected-rows="selectedRows"
+    />
   </div>
 </template>
 
@@ -179,9 +200,10 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, View, Lock } from '@element-plus/icons-vue'
+import { Search, Refresh, View, Lock, DataLine } from '@element-plus/icons-vue'
 import { getDiagnosisHistory, getDiagnosisDetail } from '@/services/diagnosis'
 import { useAuthStore } from '@/stores/authStore'
+import CompareDialog from '../components/CompareDialog.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -190,7 +212,12 @@ const loading = ref(false)
 const historyList = ref([])
 const detailVisible = ref(false)
 const currentDetail = ref(null)
-const hasSearched = ref(false) // 是否已执行过搜索
+const hasSearched = ref(false)
+const tableRef = ref(null)
+
+// 对比相关
+const selectedRows = ref([])
+const compareVisible = ref(false)
 
 // 判断是否是管理员
 const isAdmin = computed(() => authStore.userInfo?.role === 'admin')
@@ -242,7 +269,6 @@ const viewDetail = async (row) => {
 
 // 搜索
 const handleSearch = () => {
-  // 非管理员必须输入患者ID
   if (!isAdmin.value && !searchForm.patient_id.trim()) {
     ElMessage.warning('请输入患者ID进行查询')
     return
@@ -297,21 +323,35 @@ const getResultText = (features) => {
   return features.area > 1000 ? '需关注' : '正常'
 }
 
+// 表格多选
+const handleSelectionChange = (rows) => {
+  selectedRows.value = rows
+}
+
+// 打开对比弹窗
+const openCompareDialog = () => {
+  if (selectedRows.value.length < 2) {
+    ElMessage.warning('请至少选择2条记录进行对比')
+    return
+  }
+  if (selectedRows.value.length > 5) {
+    ElMessage.warning('最多选择5条记录进行对比')
+    return
+  }
+  compareVisible.value = true
+}
+
 onMounted(() => {
-  // 从 URL 参数读取 patient_id（从首页跳转过来时会带上）
   const patientIdFromUrl = route.query.patient_id
   
   if (patientIdFromUrl) {
-    // 如果 URL 带有 patient_id，自动填入并搜索
     searchForm.patient_id = patientIdFromUrl
     hasSearched.value = true
     fetchHistory()
   } else if (isAdmin.value) {
-    // 管理员自动加载数据
     hasSearched.value = true
     fetchHistory()
   }
-  // 医生没有 patient_id 参数时，需要手动输入
 })
 </script>
 
@@ -339,6 +379,16 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  gap: 10px;
 }
 
 .pagination-container {
