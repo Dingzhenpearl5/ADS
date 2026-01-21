@@ -60,6 +60,27 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="诊断权限" min-width="200">
+          <template #default="{ row }">
+            <template v-if="row.role === 'admin'">
+              <el-tag type="danger" size="small">全部权限</el-tag>
+            </template>
+            <template v-else>
+              <el-tag 
+                v-for="perm in (row.permissions || [])" 
+                :key="perm"
+                type="primary"
+                size="small"
+                style="margin-right: 4px; margin-bottom: 4px;"
+              >
+                {{ permissionLabels[perm] || perm }}
+              </el-tag>
+              <el-tag v-if="!row.permissions || row.permissions.length === 0" type="info" size="small">
+                无权限
+              </el-tag>
+            </template>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
@@ -135,7 +156,7 @@
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="80px"
+        label-width="100px"
       >
         <el-form-item label="用户名" prop="username">
           <el-input 
@@ -151,6 +172,19 @@
           <el-select v-model="form.role" placeholder="请选择角色" style="width: 100%">
             <el-option label="医生" value="doctor" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="诊断权限" prop="permissions">
+          <el-checkbox-group v-model="form.permissions">
+            <el-checkbox label="rectum">直肠诊断</el-checkbox>
+            <el-checkbox label="lung">肺部诊断</el-checkbox>
+            <el-checkbox label="liver">肝脏诊断</el-checkbox>
+            <el-checkbox label="brain">脑部诊断</el-checkbox>
+            <el-checkbox label="breast">乳腺诊断</el-checkbox>
+            <el-checkbox label="stomach">胃部诊断</el-checkbox>
+          </el-checkbox-group>
+          <div class="permission-tip">
+            <el-text type="info" size="small">勾选医生可访问的诊断工作区</el-text>
+          </div>
         </el-form-item>
         <el-form-item v-if="dialogType === 'create'" label="密码" prop="password">
           <el-input 
@@ -209,6 +243,16 @@ import { ElMessage } from 'element-plus'
 import { Search, RefreshRight, Plus } from '@element-plus/icons-vue'
 import request from '../../../services/request'
 
+// 权限标签映射
+const permissionLabels = {
+  rectum: '直肠',
+  lung: '肺部',
+  liver: '肝脏',
+  brain: '脑部',
+  breast: '乳腺',
+  stomach: '胃部'
+}
+
 // 筛选条件
 const filters = reactive({
   keyword: '',
@@ -239,7 +283,8 @@ const form = reactive({
   username: '',
   name: '',
   role: 'doctor',
-  password: ''
+  password: '',
+  permissions: ['rectum'] // 默认有直肠诊断权限
 })
 
 // 表单验证
@@ -331,6 +376,7 @@ const handleCreate = () => {
   form.name = ''
   form.role = 'doctor'
   form.password = ''
+  form.permissions = ['rectum'] // 默认权限
   dialogVisible.value = true
 }
 
@@ -342,6 +388,7 @@ const handleEdit = (row) => {
   form.name = row.name
   form.role = row.role
   form.password = ''
+  form.permissions = row.permissions || ['rectum']
   dialogVisible.value = true
 }
 
@@ -366,7 +413,8 @@ const handleSubmit = async () => {
           username: form.username,
           name: form.name,
           role: form.role,
-          password: form.password
+          password: form.password,
+          permissions: form.permissions
         })
         if (res.status === 1) {
           ElMessage.success('用户创建成功')
@@ -378,7 +426,8 @@ const handleSubmit = async () => {
       } else {
         const data = {
           name: form.name,
-          role: form.role
+          role: form.role,
+          permissions: form.permissions
         }
         if (form.password) {
           data.password = form.password
@@ -510,5 +559,9 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.permission-tip {
+  margin-top: 4px;
 }
 </style>

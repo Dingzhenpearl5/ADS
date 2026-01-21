@@ -11,7 +11,7 @@
         v-for="part in bodyParts"
         :key="part.id"
         class="part-card"
-        :class="{ disabled: !part.available }"
+        :class="{ disabled: !part.available, 'no-permission': part.available && !hasPermission(part.id) }"
         shadow="hover"
         @click="handlePartClick(part)"
       >
@@ -26,7 +26,8 @@
           <p class="part-desc">{{ part.description }}</p>
           
           <div class="part-meta">
-            <el-tag v-if="part.available" type="success" size="small">可用</el-tag>
+            <el-tag v-if="part.available && hasPermission(part.id)" type="success" size="small">可用</el-tag>
+            <el-tag v-else-if="part.available && !hasPermission(part.id)" type="warning" size="small">无权限</el-tag>
             <el-tag v-else type="info" size="small">开发中</el-tag>
             <span class="case-count">{{ part.caseCount }} 例</span>
           </div>
@@ -43,12 +44,20 @@
           </div>
 
           <el-button 
-            v-if="part.available"
+            v-if="part.available && hasPermission(part.id)"
             type="primary" 
             class="enter-btn"
             :icon="Right"
           >
             进入诊断
+          </el-button>
+          <el-button 
+            v-else-if="part.available && !hasPermission(part.id)"
+            type="warning"
+            class="enter-btn"
+            :icon="Lock"
+          >
+            需要授权
           </el-button>
           <el-button 
             v-else
@@ -59,7 +68,7 @@
           </el-button>
         </div>
 
-        <div v-if="!part.available" class="overlay">
+        <div v-if="!part.available || !hasPermission(part.id)" class="overlay">
           <el-icon class="lock-icon" :size="32"><Lock /></el-icon>
         </div>
       </el-card>
@@ -90,8 +99,20 @@ import {
   Right, Lock, Medal, FirstAidKit, 
   Orange, Apple, Coffee, IceCream
 } from '@element-plus/icons-vue'
+import { useAuthStore } from '../../../stores/authStore'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+// 用户权限
+const userPermissions = computed(() => authStore.userPermissions)
+
+// 检查是否有某个部位的权限
+const hasPermission = (partId) => {
+  // 管理员拥有所有权限
+  if (authStore.userRole === 'admin') return true
+  return userPermissions.value.includes(partId)
+}
 
 // 身体部位配置
 const bodyParts = ref([
@@ -181,6 +202,12 @@ const onlineDoctors = ref(8)
 const handlePartClick = (part) => {
   if (!part.available) {
     ElMessage.info(`${part.name}诊断功能正在开发中，敬请期待！`)
+    return
+  }
+  
+  // 检查权限
+  if (!hasPermission(part.id)) {
+    ElMessage.warning(`您没有${part.name}诊断的访问权限，请联系管理员开通`)
     return
   }
   
@@ -356,6 +383,19 @@ const handlePartClick = (part) => {
 
 .lock-icon {
   color: #909399;
+}
+
+/* 无权限样式 */
+.part-card.no-permission {
+  opacity: 0.85;
+}
+
+.part-card.no-permission .overlay {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.part-card.no-permission .lock-icon {
+  color: #e6a23c;
 }
 
 /* 快速统计 */

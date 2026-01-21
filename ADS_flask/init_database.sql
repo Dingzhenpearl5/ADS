@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(50) COMMENT '姓名',
     role VARCHAR(20) COMMENT '角色: admin/doctor',
     status VARCHAR(20) DEFAULT 'active' COMMENT '状态: active/disabled',
+    permissions TEXT COMMENT '诊断权限(JSON数组)',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
@@ -142,14 +143,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ============================================================
 
 -- 创建管理员账户 (密码: admin123)
-INSERT IGNORE INTO users (username, password, name, role) VALUES 
-('admin', '240be518fabd2724ddb6f04eeb9d5b07d8213f9e81ef5d1d4f2a8e0c8e8a6c3b', '系统管理员', 'admin');
+INSERT IGNORE INTO users (username, password, name, role, permissions) VALUES 
+('admin', '240be518fabd2724ddb6f04eeb9d5b07d8213f9e81ef5d1d4f2a8e0c8e8a6c3b', '系统管理员', 'admin', '["rectum","lung","liver","brain","breast","stomach"]');
 
 -- 创建医生账户 (密码: doctor123)
-INSERT IGNORE INTO users (username, password, name, role) VALUES 
-('zhangwei', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生张伟', 'doctor'),
-('lina', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生李娜', 'doctor'),
-('wangqiang', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生王强', 'doctor');
+INSERT IGNORE INTO users (username, password, name, role, permissions) VALUES 
+('zhangwei', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生张伟', 'doctor', '["rectum"]'),
+('lina', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生李娜', 'doctor', '["rectum"]'),
+('wangqiang', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', '医生王强', 'doctor', '["rectum"]');
 
 -- 初始系统设置
 INSERT IGNORE INTO system_settings (`key`, value, description, category, updated_by) VALUES 

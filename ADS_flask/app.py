@@ -69,6 +69,7 @@ class User(db.Model):
     name = db.Column(db.String(50))
     role = db.Column(db.String(20))
     status = db.Column(db.String(20), default='active')  # active/disabled
+    permissions = db.Column(db.Text, default='["rectum"]')  # JSON数组：允许访问的诊断模块
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
@@ -507,6 +508,12 @@ def login():
         
         print(f"[Login] 用户 {username} 登录成功")
         
+        # 解析用户权限
+        try:
+            permissions = json.loads(user.permissions) if user.permissions else ['rectum']
+        except:
+            permissions = ['rectum']
+        
         return jsonify({
             'status': 1,
             'message': '登录成功',
@@ -515,6 +522,7 @@ def login():
                 'username': user.username,
                 'name': user.name,
                 'role': user.role,
+                'permissions': permissions,
                 'expire_time': expire_time.strftime('%Y-%m-%d %H:%M:%S')
             }
         })
@@ -1135,12 +1143,19 @@ def get_users():
         
         users = []
         for user in pagination.items:
+            # 解析权限
+            try:
+                permissions = json.loads(user.permissions) if user.permissions else ['rectum']
+            except:
+                permissions = ['rectum']
+            
             users.append({
                 'id': user.id,
                 'username': user.username,
                 'name': user.name,
                 'role': user.role,
                 'status': user.status or 'active',
+                'permissions': permissions,
                 'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
                 'updated_at': user.updated_at.strftime('%Y-%m-%d %H:%M:%S') if user.updated_at else None
             })
@@ -1172,6 +1187,7 @@ def create_user():
         password = data.get('password')
         name = data.get('name')
         role = data.get('role', 'doctor')
+        permissions = data.get('permissions', ['rectum'])  # 默认只有直肠诊断权限
         
         if not username or not password:
             return jsonify({'status': 0, 'error': '用户名和密码不能为空'})
@@ -1186,13 +1202,14 @@ def create_user():
             password=hashlib.sha256(password.encode()).hexdigest(),
             name=name or username,
             role=role,
-            status='active'
+            status='active',
+            permissions=json.dumps(permissions)
         )
         db.session.add(user)
         db.session.commit()
         
         # 记录审计日志
-        log_audit('create', 'user', target=username, detail=json.dumps({'name': name, 'role': role}))
+        log_audit('create', 'user', target=username, detail=json.dumps({'name': name, 'role': role, 'permissions': permissions}))
         
         return jsonify({
             'status': 1,
@@ -1201,7 +1218,8 @@ def create_user():
                 'id': user.id,
                 'username': user.username,
                 'name': user.name,
-                'role': user.role
+                'role': user.role,
+                'permissions': permissions
             }
         })
     except Exception as e:
@@ -1221,6 +1239,12 @@ def get_user(user_id):
         if not user:
             return jsonify({'status': 0, 'error': '用户不存在'})
         
+        # 解析权限
+        try:
+            permissions = json.loads(user.permissions) if user.permissions else ['rectum']
+        except:
+            permissions = ['rectum']
+        
         return jsonify({
             'status': 1,
             'data': {
@@ -1229,6 +1253,7 @@ def get_user(user_id):
                 'name': user.name,
                 'role': user.role,
                 'status': user.status or 'active',
+                'permissions': permissions,
                 'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
                 'updated_at': user.updated_at.strftime('%Y-%m-%d %H:%M:%S') if user.updated_at else None
             }
@@ -1262,6 +1287,8 @@ def update_user(user_id):
             user.role = data['role']
         if 'password' in data and data['password']:
             user.password = hashlib.sha256(data['password'].encode()).hexdigest()
+        if 'permissions' in data:
+            user.permissions = json.dumps(data['permissions'])
         
         db.session.commit()
         
