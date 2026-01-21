@@ -16,7 +16,7 @@ export function getStatistics() {
  * @param {Object} params - 查询参数
  * @param {string} params.patient_id - 患者ID（可选）
  * @param {number} params.page - 页码，默认1
- * @param {number} params.page_size - 每页数量，默认10
+ * @param {number} params.per_page - 每页数量，默认10
  */
 export function getDiagnosisHistory(params = {}) {
     return request({
