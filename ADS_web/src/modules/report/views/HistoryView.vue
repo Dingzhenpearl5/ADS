@@ -177,11 +177,13 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, View, Lock } from '@element-plus/icons-vue'
 import { getDiagnosisHistory, getDiagnosisDetail } from '@/services/diagnosis'
 import { useAuthStore } from '@/stores/authStore'
 
+const route = useRoute()
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -296,11 +298,20 @@ const getResultText = (features) => {
 }
 
 onMounted(() => {
-  // 管理员自动加载数据，医生需要输入患者ID后才能查询
-  if (isAdmin.value) {
+  // 从 URL 参数读取 patient_id（从首页跳转过来时会带上）
+  const patientIdFromUrl = route.query.patient_id
+  
+  if (patientIdFromUrl) {
+    // 如果 URL 带有 patient_id，自动填入并搜索
+    searchForm.patient_id = patientIdFromUrl
+    hasSearched.value = true
+    fetchHistory()
+  } else if (isAdmin.value) {
+    // 管理员自动加载数据
     hasSearched.value = true
     fetchHistory()
   }
+  // 医生没有 patient_id 参数时，需要手动输入
 })
 </script>
 
