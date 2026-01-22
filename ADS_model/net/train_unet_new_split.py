@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 import numpy as np
 import time
@@ -25,7 +26,7 @@ from utils.augmentation import get_training_augmentation
 class Config:
     # 数据配置
     train_dataset_path = '../../src/train'
-    batch_size = 2
+    batch_size = 1
     num_workers = 0
     
     # 数据增强配置
@@ -110,6 +111,7 @@ def dice_loss_fn(pred, target, smooth=1.0):
 criterion_bce = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.num_epochs)
+scaler = GradScaler()
 
 # 训练历史
 history = {
@@ -137,19 +139,22 @@ def train_one_epoch(epoch):
         images = x[0].to(config.device)  # (B, 1, 512, 512)
         mask_batch = mask[1].to(config.device)  # (B, 512, 512)
         
-        # 前向传播
-        outputs = model(images)
-        outputs = outputs.squeeze(1)  # (B, 512, 512)
+        # 混合精度训练
+        with autocast():
+            # 前向传播
+            outputs = model(images)
+            outputs = outputs.squeeze(1)  # (B, 512, 512)
+            
+            # 计算损失
+            loss_dice = dice_loss_fn(outputs, mask_batch)
+            loss_bce = criterion_bce(outputs, mask_batch)
+            loss = config.dice_weight * loss_dice + config.bce_weight * loss_bce
         
-        # 计算损失
-        loss_dice = dice_loss_fn(outputs, mask_batch)
-        loss_bce = criterion_bce(outputs, mask_batch)
-        loss = config.dice_weight * loss_dice + config.bce_weight * loss_bce
-        
-        # 反向传播
+        # 反向传播 (带缩放)
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         
         # 计算Dice分数
         with torch.no_grad():
