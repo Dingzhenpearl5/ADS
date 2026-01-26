@@ -555,3 +555,292 @@ def delete_announcement(id):
     except Exception as e:
         db.session.rollback()
         return error_response(str(e))
+
+
+# ==================== 模型管理 ====================
+
+import os
+from pathlib import Path
+from werkzeug.utils import secure_filename
+
+# 模型文件存放目录
+MODELS_DIR = Path(config.BASE_DIR) / 'core' / 'net' / 'models'
+ACTIVE_MODEL_LINK = Path(config.BASE_DIR) / 'core' / 'net' / 'model.pth'
+
+
+def get_model_info(model_path: Path) -> dict:
+    """获取模型文件信息"""
+    stat = model_path.stat()
+    return {
+        'name': model_path.stem,
+        'filename': model_path.name,
+        'size': stat.st_size,
+        'size_mb': round(stat.st_size / (1024 * 1024), 2),
+        'created_at': datetime.datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
+        'modified_at': datetime.datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+@system_bp.route('/models', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_models():
+    """获取所有可用模型列表"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        # 确保模型目录存在
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        
+        models = []
+        
+        # 扫描模型目录中的 .pth 文件
+        for model_file in MODELS_DIR.glob('*.pth'):
+            info = get_model_info(model_file)
+            models.append(info)
+        
+        # 检查旧的 model.pth（兼容性）
+        old_model_path = Path(config.BASE_DIR) / 'core' / 'net' / 'model.pth'
+        if old_model_path.exists() and old_model_path.is_file():
+            # 检查是否已在 models 目录中（通过硬链接或复制）
+            old_model_in_list = any(m['filename'] == 'model.pth' for m in models)
+            if not old_model_in_list:
+                info = get_model_info(old_model_path)
+                info['name'] = 'default'
+                info['is_legacy'] = True
+                models.append(info)
+        
+        # 按修改时间排序
+        models.sort(key=lambda x: x['modified_at'], reverse=True)
+        
+        return success_response({
+            'models': models,
+            'models_dir': str(MODELS_DIR)
+        })
+        
+    except Exception as e:
+        return error_response(str(e))
+
+
+@system_bp.route('/models/current', methods=['GET', 'OPTIONS'])
+@admin_required
+def get_current_model():
+    """获取当前使用的模型信息"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        from flask import current_app
+        
+        # 获取当前模型设置
+        current_model_setting = SystemSetting.query.filter_by(key='current_model').first()
+        current_model_name = current_model_setting.value if current_model_setting else 'default'
+        
+        # 检查模型是否已加载
+        model_loaded = current_app.model is not None
+        
+        # 获取当前模型文件信息
+        model_info = None
+        model_path = None
+        
+        if current_model_name == 'default':
+            model_path = Path(config.BASE_DIR) / 'core' / 'net' / 'model.pth'
+        else:
+            model_path = MODELS_DIR / f'{current_model_name}.pth'
+        
+        if model_path and model_path.exists():
+            model_info = get_model_info(model_path)
+        
+        # 检查设备
+        import torch
+        device = 'GPU (CUDA)' if torch.cuda.is_available() else 'CPU'
+        
+        return success_response({
+            'current_model': current_model_name,
+            'model_loaded': model_loaded,
+            'model_info': model_info,
+            'device': device
+        })
+        
+    except Exception as e:
+        return error_response(str(e))
+
+
+@system_bp.route('/models/switch', methods=['POST', 'OPTIONS'])
+@admin_required
+def switch_model():
+    """切换当前使用的模型"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        from flask import current_app
+        import torch
+        import core.net.unet as net
+        
+        data = request.get_json()
+        model_name = data.get('model_name')
+        
+        if not model_name:
+            return error_response('请指定模型名称')
+        
+        # 确定模型路径
+        if model_name == 'default':
+            model_path = Path(config.BASE_DIR) / 'core' / 'net' / 'model.pth'
+        else:
+            model_path = MODELS_DIR / f'{model_name}.pth'
+        
+        if not model_path.exists():
+            return error_response(f'模型文件不存在: {model_name}')
+        
+        # 加载新模型
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        new_model = net.Unet(1, 1).to(device)
+        
+        if torch.cuda.is_available():
+            new_model.load_state_dict(torch.load(str(model_path)))
+        else:
+            new_model.load_state_dict(torch.load(str(model_path), map_location='cpu'))
+        
+        new_model.eval()
+        
+        # 更新应用的模型
+        current_app.model = new_model
+        
+        # 保存当前模型设置到数据库
+        user = get_current_user()
+        username = user.username if user else 'unknown'
+        
+        setting = SystemSetting.query.filter_by(key='current_model').first()
+        if setting:
+            setting.value = model_name
+            setting.updated_by = username
+        else:
+            setting = SystemSetting(
+                key='current_model',
+                value=model_name,
+                category='model',
+                description='当前使用的诊断模型',
+                updated_by=username
+            )
+            db.session.add(setting)
+        
+        db.session.commit()
+        
+        log_audit('switch', 'model', target=model_name, 
+                  detail={'model_path': str(model_path)})
+        
+        return success_response(
+            {'model_name': model_name, 'model_path': str(model_path)},
+            message=f'已成功切换到模型: {model_name}'
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f'切换模型失败: {str(e)}')
+
+
+@system_bp.route('/models/upload', methods=['POST', 'OPTIONS'])
+@admin_required
+def upload_model():
+    """上传新模型文件"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        if 'file' not in request.files:
+            return error_response('没有选择文件')
+        
+        file = request.files['file']
+        if file.filename == '':
+            return error_response('没有选择文件')
+        
+        # 检查文件扩展名
+        if not file.filename.endswith('.pth'):
+            return error_response('仅支持 .pth 格式的模型文件')
+        
+        # 获取自定义模型名称
+        model_name = request.form.get('model_name', '').strip()
+        if not model_name:
+            model_name = Path(file.filename).stem
+        
+        # 安全的文件名
+        safe_filename = secure_filename(f'{model_name}.pth')
+        
+        # 确保目录存在
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # 保存文件
+        save_path = MODELS_DIR / safe_filename
+        
+        # 如果同名文件已存在，添加时间戳
+        if save_path.exists():
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_filename = f'{model_name}_{timestamp}.pth'
+            save_path = MODELS_DIR / safe_filename
+        
+        file.save(str(save_path))
+        
+        # 验证模型文件
+        try:
+            import torch
+            import core.net.unet as net
+            
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            test_model = net.Unet(1, 1).to(device)
+            
+            if torch.cuda.is_available():
+                test_model.load_state_dict(torch.load(str(save_path)))
+            else:
+                test_model.load_state_dict(torch.load(str(save_path), map_location='cpu'))
+            
+            del test_model  # 释放内存
+            
+        except Exception as e:
+            # 删除无效的模型文件
+            save_path.unlink()
+            return error_response(f'模型文件无效: {str(e)}')
+        
+        user = get_current_user()
+        log_audit('upload', 'model', target=safe_filename,
+                  detail={'size_mb': round(save_path.stat().st_size / (1024 * 1024), 2)})
+        
+        return success_response({
+            'filename': safe_filename,
+            'model_name': Path(safe_filename).stem,
+            'size_mb': round(save_path.stat().st_size / (1024 * 1024), 2)
+        }, message='模型上传成功')
+        
+    except Exception as e:
+        return error_response(f'上传失败: {str(e)}')
+
+
+@system_bp.route('/models/<model_name>', methods=['DELETE', 'OPTIONS'])
+@admin_required
+def delete_model(model_name):
+    """删除模型文件"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        if model_name == 'default':
+            return error_response('不能删除默认模型')
+        
+        # 检查是否是当前使用的模型
+        current_model_setting = SystemSetting.query.filter_by(key='current_model').first()
+        if current_model_setting and current_model_setting.value == model_name:
+            return error_response('不能删除当前正在使用的模型，请先切换到其他模型')
+        
+        model_path = MODELS_DIR / f'{model_name}.pth'
+        if not model_path.exists():
+            return error_response(f'模型不存在: {model_name}')
+        
+        # 删除文件
+        model_path.unlink()
+        
+        log_audit('delete', 'model', target=model_name)
+        
+        return success_response(message=f'模型 {model_name} 已删除')
+        
+    except Exception as e:
+        return error_response(f'删除失败: {str(e)}')

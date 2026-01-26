@@ -48,3 +48,63 @@ export const resetSettings = (category = null) => {
     data: { category }
   })
 }
+
+// ==================== 模型管理 ====================
+
+/**
+ * 获取所有可用模型列表
+ */
+export const getModels = () => {
+  return request({
+    url: '/api/models',
+    method: 'get'
+  })
+}
+
+/**
+ * 获取当前使用的模型信息
+ */
+export const getCurrentModel = () => {
+  return request({
+    url: '/api/models/current',
+    method: 'get'
+  })
+}
+
+/**
+ * 切换模型
+ * @param {String} modelName - 模型名称
+ */
+export const switchModel = (modelName) => {
+  return request({
+    url: '/api/models/switch',
+    method: 'post',
+    data: { model_name: modelName }
+  })
+}
+
+/**
+ * 上传新模型
+ * @param {FormData} formData - 包含 file 和可选的 model_name
+ */
+export const uploadModel = (formData) => {
+  return request({
+    url: '/api/models/upload',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+/**
+ * 删除模型
+ * @param {String} modelName - 模型名称
+ */
+export const deleteModel = (modelName) => {
+  return request({
+    url: `/api/models/${modelName}`,
+    method: 'delete'
+  })
+}

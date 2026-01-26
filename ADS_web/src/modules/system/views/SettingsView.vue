@@ -8,11 +8,11 @@
             <span class="title">系统设置</span>
           </div>
           <div class="header-right">
-            <el-button @click="handleResetAll" :loading="resetting">
+            <el-button @click="handleResetAll" :loading="resetting" v-if="activeTab !== 'model'">
               <el-icon><RefreshRight /></el-icon>
               重置所有
             </el-button>
-            <el-button type="primary" @click="handleSaveAll" :loading="saving">
+            <el-button type="primary" @click="handleSaveAll" :loading="saving" v-if="activeTab !== 'model'">
               <el-icon><Check /></el-icon>
               保存设置
             </el-button>
@@ -137,6 +137,118 @@
           </div>
         </el-tab-pane>
 
+        <!-- 模型管理 -->
+        <el-tab-pane label="模型管理" name="model">
+          <div class="tab-header">
+            <el-icon><Cpu /></el-icon>
+            <span>管理诊断分析使用的AI模型</span>
+          </div>
+          
+          <!-- 当前模型状态 -->
+          <el-card class="model-status-card" shadow="never">
+            <template #header>
+              <div class="model-card-header">
+                <span>当前模型状态</span>
+                <el-button type="primary" size="small" @click="fetchCurrentModel" :loading="modelLoading">
+                  <el-icon><Refresh /></el-icon>
+                  刷新状态
+                </el-button>
+              </div>
+            </template>
+            
+            <el-descriptions :column="2" border>
+              <el-descriptions-item label="当前模型">
+                <el-tag :type="currentModel.model_loaded ? 'success' : 'warning'">
+                  {{ currentModel.current_model || '未设置' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="运行状态">
+                <el-tag :type="currentModel.model_loaded ? 'success' : 'danger'">
+                  {{ currentModel.model_loaded ? '已加载' : '未加载' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="运行设备">
+                <el-tag type="info">{{ currentModel.device || '-' }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="文件大小">
+                {{ currentModel.model_info?.size_mb || '-' }} MB
+              </el-descriptions-item>
+              <el-descriptions-item label="修改时间" :span="2">
+                {{ currentModel.model_info?.modified_at || '-' }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+          
+          <!-- 模型列表 -->
+          <el-card class="model-list-card" shadow="never" style="margin-top: 20px;">
+            <template #header>
+              <div class="model-card-header">
+                <span>可用模型列表</span>
+                <el-upload
+                  ref="uploadRef"
+                  :show-file-list="false"
+                  :before-upload="beforeModelUpload"
+                  :http-request="handleModelUpload"
+                  accept=".pth"
+                >
+                  <el-button type="success" size="small">
+                    <el-icon><Upload /></el-icon>
+                    上传模型
+                  </el-button>
+                </el-upload>
+              </div>
+            </template>
+            
+            <el-table :data="modelList" v-loading="modelLoading" empty-text="暂无可用模型">
+              <el-table-column prop="name" label="模型名称" min-width="150">
+                <template #default="{ row }">
+                  <div class="model-name-cell">
+                    <el-icon v-if="row.name === currentModel.current_model" color="#67c23a"><Check /></el-icon>
+                    <span>{{ row.name }}</span>
+                    <el-tag v-if="row.is_legacy" size="small" type="info">旧版</el-tag>
+                    <el-tag v-if="row.name === currentModel.current_model" size="small" type="success">使用中</el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="size_mb" label="文件大小" width="120">
+                <template #default="{ row }">
+                  {{ row.size_mb }} MB
+                </template>
+              </el-table-column>
+              <el-table-column prop="modified_at" label="修改时间" width="180" />
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="{ row }">
+                  <el-button 
+                    type="primary" 
+                    size="small" 
+                    :disabled="row.name === currentModel.current_model"
+                    :loading="switchingModel === row.name"
+                    @click="handleSwitchModel(row)"
+                  >
+                    {{ row.name === currentModel.current_model ? '当前使用' : '切换使用' }}
+                  </el-button>
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    :disabled="row.name === 'default' || row.name === currentModel.current_model"
+                    @click="handleDeleteModel(row)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            
+            <div class="model-tips">
+              <el-alert type="info" :closable="false" show-icon>
+                <template #title>
+                  <span>提示：上传的模型文件必须与系统的 UNet 网络结构兼容（输入通道：1，输出通道：1）。切换模型后将立即生效。</span>
+                </template>
+              </el-alert>
+            </div>
+          </el-card>
+        </el-tab-pane>
+
         <!-- 系统设置 -->
         <el-tab-pane label="系统设置" name="system">
           <div class="tab-header">
@@ -179,7 +291,7 @@
     </el-card>
 
     <!-- 设置预览 -->
-    <el-card class="preview-card" shadow="never">
+    <el-card class="preview-card" shadow="never" v-if="activeTab !== 'model'">
       <template #header>
         <div class="card-header">
           <el-icon><View /></el-icon>
@@ -205,7 +317,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Setting, 
@@ -215,15 +327,39 @@ import {
   Document, 
   Tools,
   View,
-  Clock
+  Clock,
+  Cpu,
+  Refresh,
+  Upload
 } from '@element-plus/icons-vue'
-import { getSettings, updateSettings, resetSettings } from '@/services/settings'
+import { 
+  getSettings, 
+  updateSettings, 
+  resetSettings,
+  getModels,
+  getCurrentModel,
+  switchModel,
+  uploadModel,
+  deleteModel
+} from '@/services/settings'
 
 const loading = ref(false)
 const saving = ref(false)
 const resetting = ref(false)
 const activeTab = ref('analysis')
 const lastUpdate = ref('')
+
+// 模型管理相关状态
+const modelLoading = ref(false)
+const modelList = ref([])
+const currentModel = reactive({
+  current_model: '',
+  model_loaded: false,
+  model_info: null,
+  device: ''
+})
+const switchingModel = ref('')
+const uploadRef = ref(null)
 
 // 数据分析参数表单
 const analysisForm = reactive({
@@ -396,10 +532,165 @@ const getCategoryName = (category) => {
   const names = {
     analysis: '数据分析参数',
     report: '报告内容设置',
-    system: '系统设置'
+    system: '系统设置',
+    model: '模型管理'
   }
   return names[category] || category
 }
+
+// ==================== 模型管理功能 ====================
+
+// 获取模型列表
+const fetchModelList = async () => {
+  modelLoading.value = true
+  try {
+    const res = await getModels()
+    if (res.data.status === 1) {
+      modelList.value = res.data.data.models || []
+    }
+  } catch (error) {
+    console.error('获取模型列表失败:', error)
+    ElMessage.error('获取模型列表失败')
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+// 获取当前模型信息
+const fetchCurrentModel = async () => {
+  modelLoading.value = true
+  try {
+    const res = await getCurrentModel()
+    if (res.data.status === 1) {
+      Object.assign(currentModel, res.data.data)
+    }
+  } catch (error) {
+    console.error('获取当前模型失败:', error)
+    ElMessage.error('获取当前模型信息失败')
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+// 切换模型
+const handleSwitchModel = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要切换到模型 "${row.name}" 吗？切换后将立即生效。`,
+      '确认切换',
+      { type: 'warning' }
+    )
+    
+    switchingModel.value = row.name
+    const res = await switchModel(row.name)
+    if (res.data.status === 1) {
+      ElMessage.success(res.data.message || '切换成功')
+      await fetchCurrentModel()
+    } else {
+      ElMessage.error(res.data.error || '切换失败')
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('切换模型失败:', e)
+      ElMessage.error('切换模型失败')
+    }
+  } finally {
+    switchingModel.value = ''
+  }
+}
+
+// 上传前验证
+const beforeModelUpload = (file) => {
+  if (!file.name.endsWith('.pth')) {
+    ElMessage.error('仅支持 .pth 格式的模型文件')
+    return false
+  }
+  
+  // 限制文件大小为 500MB
+  const maxSize = 500 * 1024 * 1024
+  if (file.size > maxSize) {
+    ElMessage.error('模型文件不能超过 500MB')
+    return false
+  }
+  
+  return true
+}
+
+// 上传模型
+const handleModelUpload = async (options) => {
+  const { file } = options
+  
+  try {
+    // 询问模型名称
+    const { value: modelName } = await ElMessageBox.prompt(
+      '请输入模型名称（可选，留空则使用文件名）',
+      '上传模型',
+      {
+        confirmButtonText: '上传',
+        cancelButtonText: '取消',
+        inputPlaceholder: '模型名称'
+      }
+    )
+    
+    modelLoading.value = true
+    
+    const formData = new FormData()
+    formData.append('file', file)
+    if (modelName) {
+      formData.append('model_name', modelName)
+    }
+    
+    const res = await uploadModel(formData)
+    if (res.data.status === 1) {
+      ElMessage.success(res.data.message || '上传成功')
+      await fetchModelList()
+    } else {
+      ElMessage.error(res.data.error || '上传失败')
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('上传模型失败:', e)
+      ElMessage.error('上传模型失败')
+    }
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+// 删除模型
+const handleDeleteModel = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除模型 "${row.name}" 吗？此操作不可撤销。`,
+      '确认删除',
+      { type: 'warning' }
+    )
+    
+    modelLoading.value = true
+    const res = await deleteModel(row.name)
+    if (res.data.status === 1) {
+      ElMessage.success(res.data.message || '删除成功')
+      await fetchModelList()
+    } else {
+      ElMessage.error(res.data.error || '删除失败')
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('删除模型失败:', e)
+      ElMessage.error('删除模型失败')
+    }
+  } finally {
+    modelLoading.value = false
+  }
+}
+
+// 监听tab切换，加载模型数据
+watch(activeTab, (newTab) => {
+  if (newTab === 'model') {
+    fetchModelList()
+    fetchCurrentModel()
+  }
+})
 
 onMounted(() => {
   fetchSettings()
@@ -488,6 +779,29 @@ onMounted(() => {
   gap: 5px;
   color: #909399;
   font-size: 12px;
+}
+
+/* 模型管理样式 */
+.model-status-card,
+.model-list-card {
+  border: 1px solid #ebeef5;
+}
+
+.model-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.model-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-tips {
+  margin-top: 20px;
 }
 
 :deep(.el-tabs__content) {
