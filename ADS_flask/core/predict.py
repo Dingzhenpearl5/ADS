@@ -1,29 +1,37 @@
-import os
-import sys
+"""
+CT图像预测模块
+纯函数设计，避免全局变量，确保线程安全
+"""
+from pathlib import Path
 import cv2
 import torch
-import core.net.unet as net
 import numpy as np
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent.parent
 
+# CUDA 和线程配置
+import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 torch.set_num_threads(4)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.cuda.empty_cache()
 
-import os
-
-rate = 0.5
+# 二值化阈值
+THRESHOLD = 0.5
 
 
 def predict(dataset, model):
     """
     使用模型进行预测
+    
+    Args:
+        dataset: 包含图像数据和文件名的元组 ((tensor,), filename)
+        model: PyTorch 模型
+        
+    Returns:
+        dict: 包含 mask_path, mask_array, img_y 的结果字典
     """
     print(f"[Predict] 开始预测...")
-    
-    global res, img_y, mask_arrary
     
     try:
         with torch.no_grad():
@@ -32,12 +40,9 @@ def predict(dataset, model):
             file_name = dataset[1]
             print(f"[Predict] 文件名: {file_name}, 输入shape: {x.shape}")
 
-            # 打印输入数值范围，帮助排查归一化/数值问题
-            try:
-                x_min = float(x.min().cpu().numpy())
-                x_max = float(x.max().cpu().numpy())
-            except Exception:
-                x_min, x_max = None, None
+            # 打印输入数值范围
+            x_min = float(x.min().cpu().numpy())
+            x_max = float(x.max().cpu().numpy())
             print(f"[Predict] 输入范围: min={x_min}, max={x_max}")
 
             print(f"[Predict] 开始模型推理...")
@@ -45,35 +50,41 @@ def predict(dataset, model):
             print(f"[Predict] 推理完成，输出shape: {y.shape}")
 
             # 打印输出统计信息
-            try:
-                y_min = float(y.min().cpu().numpy())
-                y_max = float(y.max().cpu().numpy())
-            except Exception:
-                y_min, y_max = None, None
+            y_min = float(y.min().cpu().numpy())
+            y_max = float(y.max().cpu().numpy())
             print(f"[Predict] 输出范围: min={y_min}, max={y_max}")
 
             print(f"[Predict] 后处理中...")
             img_y = torch.squeeze(y).cpu().numpy()
-            # 若输出是概率(0-1)，按阈值二值化；否则直接按非零判断
-            if y_max is not None and y_max <= 1.0:
-                bin_mask = (img_y >= rate).astype('uint8')
+            
+            # 根据输出范围选择二值化方式
+            if y_max <= 1.0:
+                bin_mask = (img_y >= THRESHOLD).astype('uint8')
             else:
                 bin_mask = (img_y != 0).astype('uint8')
 
-            # 将二值掩码扩展到0-255并确保uint8
-            img_y_out = (bin_mask * 255).astype('uint8')
+            # 将二值掩码扩展到0-255
+            mask_array = (bin_mask * 255).astype('uint8')
 
             # 打印唯一值以确认是否有正例
-            unique_vals = np.unique(img_y_out)
+            unique_vals = np.unique(mask_array)
             print(f"[Predict] mask 唯一值: {unique_vals}")
 
-            tmp_mask_dir = os.path.join(BASE_DIR, 'tmp', 'mask')
-            if not os.path.exists(tmp_mask_dir):
-                os.makedirs(tmp_mask_dir)
-            mask_path = os.path.join(tmp_mask_dir, f'{file_name}_mask.png')
+            # 保存 mask 文件
+            tmp_mask_dir = BASE_DIR / 'tmp' / 'mask'
+            tmp_mask_dir.mkdir(parents=True, exist_ok=True)
+            mask_path = tmp_mask_dir / f'{file_name}_mask.png'
             
-            cv2.imwrite(mask_path, img_y_out, (cv2.IMWRITE_PNG_COMPRESSION, 0))
+            cv2.imwrite(str(mask_path), mask_array, [cv2.IMWRITE_PNG_COMPRESSION, 0])
             print(f"[Predict] ✅ 预测完成，mask保存至: {mask_path}")
+            
+            # 返回结果字典，而不是修改全局变量
+            return {
+                'mask_path': str(mask_path),
+                'mask_array': mask_array,
+                'img_y': img_y,
+                'file_name': file_name
+            }
             
     except Exception as e:
         print(f"[Predict] ❌ 预测失败: {e}")
@@ -83,7 +94,4 @@ def predict(dataset, model):
 
 
 if __name__ == '__main__':
-    # 写保存模型
-    # train()
-    # predict(dataset, model)
     pass

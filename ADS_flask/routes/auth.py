@@ -6,7 +6,8 @@ import hashlib
 import uuid
 from flask import Blueprint, request, jsonify
 
-from models import db, User, Token, LoginAttempt
+from extensions import db
+from models import User, Token, LoginAttempt
 from utils import success_response, error_response, token_required, log_audit
 
 auth_bp = Blueprint('auth', __name__)

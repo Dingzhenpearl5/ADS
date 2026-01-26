@@ -2,16 +2,16 @@
 直肠肿瘤辅助诊断系统 - 主应用
 重构版：使用 Blueprint 模块化组织代码
 """
-import os
 import logging
 from datetime import timedelta
+from pathlib import Path
 
 import torch
 from flask import Flask, jsonify, redirect, url_for, send_from_directory, make_response, Response
-from flask_socketio import SocketIO, emit
+from flask_socketio import emit
 
 import config
-from models import db
+from extensions import db, socketio, emit_progress
 from routes import register_blueprints
 import core.net.unet as net
 
@@ -29,11 +29,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = config.SQLALCHEMY_ENGINE_OPTIONS
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = timedelta(seconds=1)
 app.model = None
 
-# 初始化数据库
+# 初始化扩展
 db.init_app(app)
-
-# 初始化 Socket.IO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio.init_app(app)
 
 
 # ==================== Socket.IO 事件 ====================
@@ -47,14 +45,6 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     print('[Socket] 客户端已断开')
-
-
-def emit_progress(percentage, message):
-    """发送进度更新到所有客户端"""
-    socketio.emit('progress', {
-        'percentage': percentage,
-        'message': message
-    })
 
 
 # ==================== 注册蓝图 ====================
@@ -101,9 +91,9 @@ def show_photo(file):
     if file is None:
         return jsonify({'status': 0, 'error': '文件路径不能为空'}), 400
     
-    image_path = os.path.join(config.BASE_DIR, 'tmp', file)
+    image_path = Path(config.BASE_DIR) / 'tmp' / file
     
-    if not os.path.exists(image_path):
+    if not image_path.exists():
         return jsonify({'status': 0, 'error': '文件不存在'}), 404
     
     with open(image_path, 'rb') as f:
@@ -117,8 +107,8 @@ def show_photo(file):
 @app.route("/download", methods=['GET'])
 def download_file():
     """下载测试数据文件"""
-    file_path = os.path.join(config.BASE_DIR, 'data', 'testfile.zip')
-    if not os.path.exists(file_path):
+    file_path = Path(config.BASE_DIR) / 'data' / 'testfile.zip'
+    if not file_path.exists():
         return jsonify({'status': 0, 'error': '测试数据文件不存在'}), 404
     return send_from_directory('data', 'testfile.zip', as_attachment=True)
 
@@ -151,14 +141,14 @@ def upload_file_compat():
         print(f"[Upload] 文件名: {file.filename}")
         
         if file and allowed_file(file.filename, config.ALLOWED_EXTENSIONS):
-            src_path = os.path.join(config.UPLOAD_FOLDER, file.filename)
-            file.save(src_path)
+            src_path = Path(config.UPLOAD_FOLDER) / file.filename
+            file.save(str(src_path))
             
-            tmp_ct_dir = os.path.join(config.BASE_DIR, 'tmp', 'ct')
-            shutil.copy(src_path, tmp_ct_dir)
-            image_path = os.path.join(tmp_ct_dir, file.filename)
+            tmp_ct_dir = Path(config.BASE_DIR) / 'tmp' / 'ct'
+            shutil.copy(str(src_path), str(tmp_ct_dir))
+            image_path = tmp_ct_dir / file.filename
             
-            image_data = process.pre_process(image_path)
+            image_data = process.pre_process(str(image_path))
             pid = image_data[1]
             
             # 返回旧格式（直接返回 status 和 image_url）

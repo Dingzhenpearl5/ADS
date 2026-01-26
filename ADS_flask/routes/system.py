@@ -7,7 +7,8 @@ import io
 from flask import Blueprint, request, jsonify, Response
 from sqlalchemy import text
 
-from models import db, SystemSetting, Announcement, AuditLog, User, Token
+from extensions import db
+from models import SystemSetting, Announcement, AuditLog, User, Token
 from utils import (
     success_response, error_response, paginate_response,
     admin_required, get_pagination_params, log_audit, get_current_user

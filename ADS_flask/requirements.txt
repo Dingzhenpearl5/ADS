@@ -10,3 +10,4 @@ opencv-python
 flask-socketio
 python-socketio
 python-engineio
+python-dotenv

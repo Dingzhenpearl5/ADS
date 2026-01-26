@@ -5,7 +5,8 @@ import hashlib
 import json
 from flask import Blueprint, request, jsonify
 
-from models import db, User, Token
+from extensions import db
+from models import User, Token
 from utils import (
     success_response, error_response, paginate_response,
     admin_required, get_pagination_params, log_audit

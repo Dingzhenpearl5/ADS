@@ -6,7 +6,8 @@ import json
 from functools import wraps
 from flask import request, jsonify, g
 
-from models import db, Token, AuditLog
+from extensions import db
+from models import Token, AuditLog
 
 
 # ==================== 统一响应格式 ====================

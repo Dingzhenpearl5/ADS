@@ -5,14 +5,17 @@ import os
 import json
 import shutil
 import datetime
+from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 
-from models import db, DiagnosisRecord, Patient, Token
+from extensions import db, socketio, emit_progress
+from models import DiagnosisRecord, Patient, Token
 from utils import (
     success_response, error_response, paginate_response,
     token_required, get_pagination_params, log_audit, allowed_file
 )
 import config
+import core.main
 
 diagnosis_bp = Blueprint('diagnosis', __name__)
 
@@ -97,20 +100,17 @@ def predict_image():
         
         print(f"[Predict] 处理文件: {filename}")
         
-        # 获取socketio实例
-        from app import socketio, emit_progress
         emit_progress(10, '正在准备分析...')
         
         # 检查原始dcm文件是否存在
-        dcm_path = os.path.join(config.BASE_DIR, 'tmp', 'ct', f'{filename}.dcm')
-        if not os.path.exists(dcm_path):
+        dcm_path = Path(config.BASE_DIR) / 'tmp' / 'ct' / f'{filename}.dcm'
+        if not dcm_path.exists():
             socketio.emit('error', '原始图像文件不存在')
             return error_response('原始图像文件不存在')
         
         # 执行预测
         print(f"[Predict] 开始AI分析...")
-        import core.main
-        pid, image_info = core.main.c_main(dcm_path, current_app.model, emit_progress)
+        pid, image_info = core.main.c_main(str(dcm_path), current_app.model, emit_progress)
         
         emit_progress(100, '分析完成')
         
@@ -162,7 +162,6 @@ def predict_image():
         
     except Exception as e:
         print(f"[Predict] 预测失败: {e}")
-        from app import socketio
         socketio.emit('error', str(e))
         import traceback
         traceback.print_exc()

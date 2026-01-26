@@ -3,7 +3,8 @@
 """
 from flask import Blueprint, request, jsonify
 
-from models import db, Patient
+from extensions import db
+from models import Patient
 from utils import success_response, error_response, paginate_response, get_pagination_params, log_audit
 
 patient_bp = Blueprint('patient', __name__)
