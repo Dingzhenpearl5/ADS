@@ -155,12 +155,22 @@
 
               <!-- 诊断结果 -->
               <div class="image-panel">
-                <div class="panel-label result-label">AI 诊断结果</div>
+                <div class="panel-label result-label">
+                  AI 诊断结果
+                  <el-switch
+                    v-if="heatmapUrl"
+                    v-model="showHeatmap"
+                    inline-prompt
+                    active-text="热力图"
+                    inactive-text="轮廓图"
+                    style="margin-left: 10px;"
+                  />
+                </div>
                 <div class="image-frame" v-loading="diagnosing" element-loading-text="AI 分析中...">
                   <el-image
-                    v-if="url2"
-                    :src="url2"
-                    :preview-src-list="[url2]"
+                    v-if="showHeatmap ? heatmapUrl : url2"
+                    :src="showHeatmap ? heatmapUrl : url2"
+                    :preview-src-list="[showHeatmap ? heatmapUrl : url2]"
                     fit="contain"
                     class="ct-image"
                   />
@@ -533,6 +543,8 @@ const searchId = ref('')
 const currentFile = ref(null)
 const url1 = ref('')
 const url2 = ref('')
+const heatmapUrl = ref('') // 热力图 (新增)
+const showHeatmap = ref(false) // 是否显示热力图 (新增)
 const featureList = ref([])
 const areaData = ref(0)
 const perimeterData = ref(0)
@@ -752,6 +764,17 @@ const handleStartDiagnosis = async () => {
     
     if (res.status === 1) {
       url2.value = res.draw_url
+      // 设置热力图
+      if (res.heatmap_url) {
+        heatmapUrl.value = res.heatmap_url
+        ElMessage.success({
+            message: 'AI分析完成，生成了可解释性热力图',
+            type: 'success',
+            duration: 3000
+        })
+      } else {
+        heatmapUrl.value = ''
+      }
       
       // 保存诊断记录ID，用于后续保存医生记录
       if (res.record_id) {

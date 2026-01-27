@@ -76,11 +76,28 @@ def predict(dataset, model):
             mask_path = tmp_mask_dir / f'{file_name}_mask.png'
             
             cv2.imwrite(str(mask_path), mask_array, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+            
+            # ========== 新增：生成热力图 (Heatmap) ==========
+            # 将概率图映射到 0-255
+            heatmap_norm = (img_y * 255).astype(np.uint8)
+            # 应用伪彩色 (JET colormap: 蓝色=低概率, 红色=高概率)
+            heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_JET)
+            
+            # 保存热力图
+            tmp_heatmap_dir = BASE_DIR / 'tmp' / 'heatmap'
+            tmp_heatmap_dir.mkdir(parents=True, exist_ok=True)
+            heatmap_path = tmp_heatmap_dir / f'{file_name}_heatmap.png'
+            
+            cv2.imwrite(str(heatmap_path), heatmap_color)
+            print(f"[Predict] 🔥 热力图已生成: {heatmap_path}")
+            # ===============================================
+
             print(f"[Predict] ✅ 预测完成，mask保存至: {mask_path}")
             
-            # 返回结果字典，而不是修改全局变量
+            # 返回结果字典
             return {
                 'mask_path': str(mask_path),
+                'heatmap_path': str(heatmap_path),
                 'mask_array': mask_array,
                 'img_y': img_y,
                 'file_name': file_name

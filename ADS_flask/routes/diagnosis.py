@@ -120,6 +120,13 @@ def predict_image():
             'image_info': image_info
         }
         
+        # 添加热力图URL
+        if image_info.get('has_heatmap'):
+            # pid 包含 .png，需去掉扩展名用于 heatmap 路径 (假设 heatmap 是 .png)
+            # 实际上 pid = "filename.png"
+            file_stem = pid.replace('.png', '')
+            result['heatmap_url'] = f'{config.SERVER_URL}/tmp/heatmap/{file_stem}_heatmap.png'
+        
         # 保存诊断记录到数据库
         record_id = None
         try:

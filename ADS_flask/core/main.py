@@ -76,9 +76,15 @@ def c_main(path, model, progress_callback=None):
         # 2. 模型预测
         emit(40, '模型推理中...')
         print(f"[Main] Step 2/4: 模型预测...")
+        
+        heatmap_generated = False
+        pid = image_data[1]
+        
         if model is not None:
             t2 = time.time()
-            predict.predict(image_data, model)
+            predict_result = predict.predict(image_data, model)
+            if isinstance(predict_result, dict) and 'heatmap_path' in predict_result:
+                heatmap_generated = True
             print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
         else:
             print(f"[Main] ⚠️ 模型未加载，使用模拟数据")
@@ -102,6 +108,10 @@ def c_main(path, model, progress_callback=None):
             image_info = generate_mock_features()
             print(f"[Main] ⚠️ 使用模拟特征数据")
         print(f"[Main] ✅ 特征提取完成 ({time.time()-t4:.2f}秒)")
+        
+        # 添加热力图标记
+        if heatmap_generated:
+            image_info['has_heatmap'] = True
         
         total_time = time.time() - start_time
         print(f"[Main] 🎉 全部完成! 总耗时: {total_time:.2f}秒")
