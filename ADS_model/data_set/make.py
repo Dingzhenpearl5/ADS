@@ -255,14 +255,15 @@ class PatientDataset(data.Dataset):
                     if have and not mask_array.any():
                         continue
                     
-                    # 预处理图像
-                    ROI_mask = np.zeros(shape=image_array.shape)
-                    ROI_mask_mini = np.zeros(shape=(1, 160, 100))
-                    ROI_mask_mini[0] = image_array[0][270:430, 200:300]
-                    ROI_mask_mini = data_in_one(ROI_mask_mini)
-                    ROI_mask[0][270:430, 200:300] = ROI_mask_mini[0]
-                    
-                    image_tensor = torch.from_numpy(ROI_mask).float()
+                    # 预处理图像 (使用全图 + 窗宽窗位)
+                    # CT软组织窗截断 [-200, 300]
+                    # image_array shape: (1, 512, 512)
+                    img_np = image_array[0]
+                    img_np = np.clip(img_np, -200, 300)
+                    image_norm = data_in_one(img_np)
+                    # 增加 channel 维度 (1, 512, 512)
+                    image_norm = np.expand_dims(image_norm, axis=0)
+                    image_tensor = torch.from_numpy(image_norm).float()
                     
                     # 预处理mask
                     mask_array = data_in_one(mask_array)

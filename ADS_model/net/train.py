@@ -32,14 +32,18 @@ def weights_init(m):
 rate = 0.50
 learn_rate = 0.001
 epochs = 50  # 正式训练：50个epoch
-# train_dataset_path = '../data/all/d1/'
-train_dataset_path = 'C:/Users/Masoa/OneDrive/work/ADS/src/train'  # 修复：使用正确的数据路径
+train_dataset_path = '../../src/train'  # 使用相对路径
 
-train_dataset, test_dataset = make.get_d1(train_dataset_path)
+# 获取数据 (train, val, test)
+train_dataset, val_dataset, test_dataset = make.get_d1(train_dataset_path)
+
+# 如果想用 val_dataset 做测试集监控，可以这样赋值
+# train_dataset = train_dataset
+# test_dataset = val_dataset 
+
 unet = unet.Unet(1, 1).to(device).apply(weights_init)
 
-# 使用 Dice Loss + BCE Loss 组合来处理类别不平衡
-# 肿瘤像素仅占约0.5%,单纯BCE会导致模型倾向于全预测背景
+# 使用 Dice Loss + BCE Loss (降低BCE权重)
 criterion_bce = torch.nn.BCELoss().to(device)
 
 def dice_loss_fn(pred, target, smooth=1.0):
@@ -55,44 +59,48 @@ optimizer = torch.optim.Adam(unet.parameters(), learn_rate)
 
 def train():
     global res
-    dataloaders = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0)
+    # Batch Size设为1以适应 3050 Laptop 4GB 显存
+    dataloaders = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=0)
+    print(f"训练开始... (Steps: {len(dataloaders)})")
+    
     for epoch in range(epochs):
         dt_size = len(dataloaders.dataset)
         epoch_loss, epoch_dice = 0, 0
         step = 0
+        unet.train()
+        
         for x, y in dataloaders:
-            id = x[1:]
             step += 1
             x = x[0].to(device)
-            y = y[1].unsqueeze(1).to(device)  # 添加 channel 维度 [B, H, W] -> [B, 1, H, W]
+            # y[1] 是 mask tensor
+            target = y[1].to(device)
+            if len(target.shape) == 3:
+                target = target.unsqueeze(1) # [B, 1, H, W]
+            
             optimizer.zero_grad()
             outputs = unet(x)
             
-            # 组合损失: BCE + Dice Loss (权重比1:1)
-            loss_bce = criterion_bce(outputs, y)
-            loss_dice = dice_loss_fn(outputs, y)
-            loss = loss_bce + loss_dice
+            # 组合损失: 降低BCE权重，强调Dice
+            loss_bce = criterion_bce(outputs, target)
+            loss_dice = dice_loss_fn(outputs, target)
+            loss = 0.1 * loss_bce + 1.0 * loss_dice
             
             loss.backward()
             optimizer.step()
             
-            # 计算 dice 系数
-            a = outputs.cpu().detach().squeeze(1).numpy()
-            a[a >= rate] = 1
-            a[a < rate] = 0
-            b = y.cpu().detach().squeeze(1).numpy()
-            dice = dice_loss.dice(a, b)
-            epoch_loss += float(loss.item())
-            epoch_dice += dice
+            # 计算 dice score
+            with torch.no_grad():
+                pred_bin = (outputs > 0.5).float()
+                # 使用 dice_loss.dice 计算 Score
+                curr_dice = dice_loss.dice(pred_bin.cpu().numpy(), target.cpu().numpy())
+            
+            epoch_loss += loss.item()
+            epoch_dice += curr_dice
 
-            # 每100步输出一次进度
-            if step % 100 == 0:
-                res['epoch'].append((epoch + 1) * step)
-                res['loss'].append(loss.item())
-                print("Epoch%d Step%d/%d | Loss:%.4f | Train Dice:%.4f | " % (
-                    epoch + 1, step, (dt_size - 1) // dataloaders.batch_size + 1, 
-                    loss.item(), dice), end='')
-                test()
+            # 每20步输出一次进度
+            if step % 20 == 0:
+                print("\rEpoch%d Step%d/%d | Loss:%.4f | Train Dice:%.4f" % (
+                    epoch + 1, step, len(dataloaders), loss.item(), curr_dice), end='')
         
         # 每个 epoch 结束后打印统计
         avg_loss = epoch_loss / step
@@ -100,37 +108,12 @@ def train():
         print(f"\n{'='*60}")
         print(f"Epoch {epoch + 1}/{epochs} Complete | Avg Loss: {avg_loss:.4f} | Avg Dice: {avg_dice:.4f}")
         print(f"{'='*60}\n")
-    #  print("epoch %d loss:%0.3f,dice %f" % (epoch, epoch_loss / step, epoch_dice / step))
-    
-    # 保存模型
-    torch.save(unet.state_dict(), '../model_weights.pth')
-    print(f"\nModel saved to model_weights.pth")
-    
-    # 绘制损失曲线
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(res['epoch'], np.squeeze(res['loss']), label='Train loss')
-    plt.ylabel('Loss')
-    plt.xlabel('Steps')
-    plt.title("Training Loss")
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(1, 2, 2)
-    plt.plot(res['epoch'], np.squeeze(res['dice']), label='Test Dice', color='#FF9966')
-    plt.ylabel('Dice Score')
-    plt.xlabel('Steps')
-    plt.title("Validation Dice Score")
-    plt.legend()
-    plt.grid(True)
-    
-    plt.tight_layout()
-    plt.savefig("training_history.jpg")
-    print(f"Training curves saved to training_history.jpg")
-
-    # torch.save(unet, 'unet.pkl')
-    # model = torch.load('unet.pkl')
-    test()
+        
+        # 保存模型
+        torch.save(unet.state_dict(), '../model_weights.pth')
+        
+        # 简单测试
+        # test()
 
 
 def test():
