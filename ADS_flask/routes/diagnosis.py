@@ -175,6 +175,37 @@ def predict_image():
         return error_response(str(e))
 
 
+@diagnosis_bp.route('/analyze', methods=['POST', 'OPTIONS'])
+@token_required
+def analyze_condition():
+    """AI病情分析接口 (接入 DeepSeek)"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 1})
+    
+    try:
+        data = request.get_json()
+        features = data.get('features', {})
+        
+        # 简单校验
+        if not features:
+            return error_response('缺少特征数据')
+            
+        print(f"[Analyze] 开始调用 DeepSeek 分析...")
+        
+        from core.analyze import analyze_diagnosis
+        result = analyze_diagnosis(features)
+        
+        # 添加分析时间
+        result['analysisTime'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        print(f"[Analyze] 分析完成: {result.get('conclusion')}")
+        return success_response(result)
+        
+    except Exception as e:
+        print(f"[Analyze] 分析失败: {e}")
+        return error_response(str(e))
+
+
 @diagnosis_bp.route('/diagnosis/history', methods=['GET', 'OPTIONS'])
 def get_diagnosis_history():
     """获取诊断历史记录"""

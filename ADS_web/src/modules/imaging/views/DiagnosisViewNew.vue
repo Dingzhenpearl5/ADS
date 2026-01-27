@@ -502,7 +502,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import { getPatientInfo } from '@/services/patient'
-import { startTask, uploadDcm } from '@/services/task'
+import { startTask, uploadDcm, analyzeCondition } from '@/services/task'
 import { saveDoctorRecord } from '@/services/diagnosis'
 import { useAiPrediction } from '@/composables/useAiPrediction'
 
@@ -835,37 +835,22 @@ const startAiAnalysis = async () => {
   isAnalyzing.value = true
   
   try {
-    // 模拟AI分析过程，实际应调用后端API
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // 调用后端 DeepSeek 接口
+    const res = await analyzeCondition({ 
+      imageUrl: url2.value, 
+      features: featureList.value.reduce((acc, cur) => {
+        acc[cur.label] = cur.value
+        return acc
+      }, {})
+    })
     
-    // TODO: 替换为实际的API调用
-    // const res = await analyzeCondition({ imageUrl: url2.value, features: featureList.value })
-    
-    // 模拟返回结果
-    const mockResult = {
-      conclusion: '检测到直肠肿瘤病变，建议进一步检查',
-      riskLevel: '中',
-      confidence: 87.5,
-      description: '根据影像分析，在直肠区域检测到异常组织增生。肿瘤边界相对清晰，大小约为' + areaData.value.toFixed(2) + 'px²。组织密度异常，与周围正常组织存在明显差异。建议结合病理检查进行综合评估。',
-      suggestions: [
-        '建议尽快进行肠镜检查以确认病变性质',
-        '建议进行病理活检以明确肿瘤类型',
-        '建议完善CT增强扫描评估淋巴结情况',
-        '建议咨询肛肠外科专家制定治疗方案',
-        '定期复查监测病情变化'
-      ],
-      analysisTime: new Date().toLocaleString('zh-CN', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit',
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit'
-      })
+    if (res.data.status === 1) {
+       aiAnalysisResult.value = res.data.data
+       ElMessage.success('AI病情分析完成')
+    } else {
+       throw new Error(res.data.error || '分析失败')
     }
-    
-    aiAnalysisResult.value = mockResult
-    ElMessage.success('AI病情分析完成')
+
   } catch (e) {
     console.error(e)
     ElMessage.error('AI分析失败: ' + (e.message || '未知错误'))

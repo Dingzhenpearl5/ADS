@@ -29,3 +29,12 @@ export function startTask(data) {
         data
     })
 }
+
+// 启动病情分析 (DeepSeek)
+export function analyzeCondition(data) {
+    return request({
+        url: '/api/analyze',
+        method: 'post',
+        data
+    })
+}

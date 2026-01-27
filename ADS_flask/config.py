@@ -35,6 +35,10 @@ SQLALCHEMY_ENGINE_OPTIONS = {'pool_recycle': 280}
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 TOKEN_EXPIRE_HOURS = int(os.environ.get('TOKEN_EXPIRE_HOURS', 24))
 
+# DeepSeek AI 配置
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-3f82874130094b8e96bfcf0184451994') # 这里的 Key 需要用户替换
+DEEPSEEK_API_URL = os.environ.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/chat/completions')
+
 
 def init_directories():
     """初始化必要的目录"""
