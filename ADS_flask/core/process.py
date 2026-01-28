@@ -26,15 +26,24 @@ def pre_process(data_path):
     print(f"[PreProcess] 图像shape: {image_array.shape}")
 
     print(f"[PreProcess] 提取ROI区域...")
-    ROI_mask = np.zeros(shape=image_array.shape)
-    ROI_mask_mini = np.zeros(shape=(1, 160, 100))
-    ROI_mask_mini[0] = image_array[0][270:430, 200:300]
-    ROI_mask_mini = data_in_one(ROI_mask_mini)
-    ROI_mask[0][270:430, 200:300] = ROI_mask_mini[0]
-    test_image = ROI_mask
+    # ROI_mask = np.zeros(shape=image_array.shape)
+    # ROI_mask_mini = np.zeros(shape=(1, 160, 100))
+    # ROI_mask_mini[0] = image_array[0][270:430, 200:300]
+    # ROI_mask_mini = data_in_one(ROI_mask_mini)
+    # ROI_mask[0][270:430, 200:300] = ROI_mask_mini[0]
+    
+    # 修改为全图输入，并进行CT窗位截断
+    img_np = image_array[0].astype(np.float32)
+    img_np = np.clip(img_np, -200, 300)
+    image_norm = data_in_one(img_np)
+    
+    # test_image用于后续可视化或其他用途，这里保持一致
+    test_image = np.expand_dims(image_norm, axis=0) 
     
     print(f"[PreProcess] 转换为tensor...")
-    image_tensor = torch.from_numpy(ROI_mask).float().unsqueeze(1)
+    image_tensor = torch.from_numpy(image_norm).float().unsqueeze(0).unsqueeze(0)
+    # shape: (1, 1, 512, 512)
+    
     image_data.append(image_tensor)
     file_name = os.path.split(data_path)[1].replace('.dcm', '')
 

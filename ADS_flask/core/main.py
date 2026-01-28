@@ -87,9 +87,9 @@ def c_main(path, model, progress_callback=None):
                 heatmap_generated = True
             print(f"[Main] ✅ 预测完成 ({time.time()-t2:.2f}秒)")
         else:
-            print(f"[Main] ⚠️ 模型未加载，使用模拟数据")
-            time.sleep(0.5)  # 模拟延迟
-            generate_mock_mask(image_data[1])
+            # 强制使用不需要模拟数据
+             raise RuntimeError("系统错误: AI诊断模型未加载，无法进行预测。")
+            
         
         # 3. 后处理
         emit(70, '后处理生成轮廓...')
@@ -102,11 +102,12 @@ def c_main(path, model, progress_callback=None):
         emit(90, '提取特征数据...')
         print(f"[Main] Step 4/4: 特征提取...")
         t4 = time.time()
-        if model is not None:
-            image_info = get_feature.main(image_data[1])
-        else:
-            image_info = generate_mock_features()
-            print(f"[Main] ⚠️ 使用模拟特征数据")
+        
+        # 总是提取真实特征
+        if model is None:
+             raise RuntimeError("AI模型未就绪")
+             
+        image_info = get_feature.main(image_data[1])
         print(f"[Main] ✅ 特征提取完成 ({time.time()-t4:.2f}秒)")
         
         # 添加热力图标记
