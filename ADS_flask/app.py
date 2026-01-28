@@ -2,7 +2,11 @@
 直肠肿瘤辅助诊断系统 - 主应用
 重构版：使用 Blueprint 模块化组织代码
 """
+import eventlet
+eventlet.monkey_patch()
+
 import logging
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -298,12 +302,13 @@ if __name__ == '__main__':
         print("[Server] 启动Flask-SocketIO服务器...")
         print(f"[Server] 服务器地址: {config.SERVER_URL}")
         print("[Server] Socket.IO 已启用")
+        
         socketio.run(
             app, 
             host=config.SERVER_HOST, 
             port=config.SERVER_PORT, 
-            debug=False, 
-            use_reloader=False
+            debug=False,
+            use_reloader=False 
         )
         
     except Exception as e:

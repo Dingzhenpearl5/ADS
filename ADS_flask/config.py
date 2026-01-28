@@ -26,7 +26,7 @@ MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
 # 数据库配置 - 从环境变量读取，提高安全性
 SQLALCHEMY_DATABASE_URI = os.environ.get(
     'DATABASE_URL', 
-    'mysql+pymysql://root:123456@localhost/ads_db'
+    'mysql+pymysql://root:123456@127.0.0.1/ads_db'
 )
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SQLALCHEMY_ENGINE_OPTIONS = {'pool_recycle': 280}

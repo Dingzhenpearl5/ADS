@@ -8,8 +8,8 @@ from flask_socketio import SocketIO
 # 数据库实例
 db = SQLAlchemy()
 
-# Socket.IO 实例
-socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
+# Socket.IO 实例 - 使用 eventlet 作为异步模式
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
 
 def emit_progress(percentage, message):

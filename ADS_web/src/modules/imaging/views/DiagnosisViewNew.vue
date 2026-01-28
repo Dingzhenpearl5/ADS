@@ -418,11 +418,11 @@
             <div class="quick-stats" v-if="areaData || perimeterData">
               <div class="stat-item">
                 <div class="stat-label">面积</div>
-                <div class="stat-value">{{ areaData.toFixed(2) }} px²</div>
+                <div class="stat-value">{{ Number(areaData).toFixed(2) }} px²</div>
               </div>
               <div class="stat-item">
                 <div class="stat-label">周长</div>
-                <div class="stat-value">{{ perimeterData.toFixed(2) }} px</div>
+                <div class="stat-value">{{ Number(perimeterData).toFixed(2) }} px</div>
               </div>
             </div>
           </el-card>
@@ -695,7 +695,7 @@ const uploadFile = async (file) => {
   try {
     const res = await uploadDcm(file)
     if (res.status === 1) {
-      url1.value = res.image_url
+      url1.value = res.data?.image_url || res.image_url
       // 清空之前的结果
       url2.value = ''
       featureList.value = []
@@ -763,10 +763,12 @@ const handleStartDiagnosis = async () => {
     progressStatus.value = '分析完成'
     
     if (res.status === 1) {
-      url2.value = res.draw_url
+      // 响应数据可能在 res.data 中（success_response 格式）
+      const data = res.data || res
+      url2.value = data.draw_url
       // 设置热力图
-      if (res.heatmap_url) {
-        heatmapUrl.value = res.heatmap_url
+      if (data.heatmap_url) {
+        heatmapUrl.value = data.heatmap_url
         ElMessage.success({
             message: 'AI分析完成，生成了可解释性热力图',
             type: 'success',
@@ -777,8 +779,8 @@ const handleStartDiagnosis = async () => {
       }
       
       // 保存诊断记录ID，用于后续保存医生记录
-      if (res.record_id) {
-        currentRecordId.value = res.record_id
+      if (data.record_id) {
+        currentRecordId.value = data.record_id
         // 重置医生记录表单
         doctorRecord.value = {
           conclusion: '',
@@ -788,14 +790,21 @@ const handleStartDiagnosis = async () => {
         }
       }
       
-      if (res.image_info) {
-        const info = res.image_info
+      if (data.image_info) {
+        const info = data.image_info
         featureList.value = Object.entries(info).map(([key, value]) => ({
           name: key,
-          value: typeof value === 'number' ? value.toFixed(4) : value
+          // 后端返回格式可能是 [中文名, 数值] 或直接是数值
+          value: Array.isArray(value) ? (value[1] ?? value[0]) : (typeof value === 'number' ? value.toFixed(4) : value)
         }))
-        areaData.value = info['面积'] || info['area'] || 0
-        perimeterData.value = info['周长'] || info['perimeter'] || 0
+        // 提取数值：后端返回的格式是 {'area': ['面积', 数值], ...}
+        const getNumericValue = (val) => {
+          if (Array.isArray(val)) return Number(val[1]) || 0
+          if (typeof val === 'number') return val
+          return 0
+        }
+        areaData.value = getNumericValue(info['area']) || getNumericValue(info['面积']) || 0
+        perimeterData.value = getNumericValue(info['perimeter']) || getNumericValue(info['周长']) || 0
       }
       
       ElMessage.success('AI诊断分析完成')
@@ -839,16 +848,16 @@ const startAiAnalysis = async () => {
     const res = await analyzeCondition({ 
       imageUrl: url2.value, 
       features: featureList.value.reduce((acc, cur) => {
-        acc[cur.label] = cur.value
+        acc[cur.name] = cur.value
         return acc
       }, {})
     })
     
-    if (res.data.status === 1) {
-       aiAnalysisResult.value = res.data.data
+    if (res.status === 1) {
+       aiAnalysisResult.value = res.data
        ElMessage.success('AI病情分析完成')
     } else {
-       throw new Error(res.data.error || '分析失败')
+       throw new Error(res.error || '分析失败')
     }
 
   } catch (e) {

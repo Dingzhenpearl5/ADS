@@ -23,22 +23,27 @@ def analyze_diagnosis(image_features, risk_level="未知"):
             "description": "请在配置文件中设置 DEEPSEEK_API_KEY"
         }
 
-    # 构建提示词
+    # 构建提示词 - 支持中英文 key
+    area = image_features.get('面积') or image_features.get('area') or '未知'
+    perimeter = image_features.get('周长') or image_features.get('perimeter') or '未知'
+    ellipse = image_features.get('似圆度') or image_features.get('ellipse') or '未知'
+    gray_mean = image_features.get('灰度均值') or image_features.get('mean') or '未知'
+    gray_std = image_features.get('灰度方差') or image_features.get('std') or '未知'
+    
     prompt = f"""
     你是一个专业的直肠肿瘤辅助诊断AI助手。请根据以下CT影像分析特征，生成一份专业的医疗诊断分析报告。
     
     **影像特征数据:**
-    - 肿瘤面积: {image_features.get('面积', '未知')} 像素
-    - 肿瘤周长: {image_features.get('周长', '未知')} 像素
-    - 似圆度: {image_features.get('似圆度', '未知')} (越接近1越圆)
-    - 灰度均值: {image_features.get('灰度均值', '未知')}
-    - 灰度方差: {image_features.get('灰度方差', '未知')}
+    - 肿瘤面积: {area} 像素
+    - 肿瘤周长: {perimeter} 像素
+    - 似圆度: {ellipse} (越接近0越圆，负值表示接近圆形)
+    - 灰度均值: {gray_mean}
+    - 灰度方差: {gray_std}
     
     **请生成以下 JSON 格式的回复 (不要包含 markdown 格式):**
     {{
         "conclusion": "简短的诊断结论 (如: 疑似直肠恶性肿瘤)",
         "riskLevel": "风险等级 (低/中/高)",
-        "confidence": "置信度数值 (0-100)",
         "description": "详细的病情描述 (100-200字，分析形态、密度等特征)",
         "suggestions": ["建议1", "建议2", "建议3"]
     }}

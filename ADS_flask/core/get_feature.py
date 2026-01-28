@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 import pandas as pd
 from numba import jit
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 np.set_printoptions(suppress=True)  # 输出时禁止科学表示法，直接输出小数值
 
@@ -39,7 +42,7 @@ def glcm(img_gray, ngrad=16, ngray=16):
     get_glcm_features(gray_grad)
 
 
-@jit
+# @jit  # Numba 无法处理全局字典 c_features，移除 jit 以确保稳定性
 def get_gray_feature():
     # 灰度特征提取算法
     hist = cv2.calcHist([image_ROI_uint8[index]], [0], None, [256], [0, 256])
