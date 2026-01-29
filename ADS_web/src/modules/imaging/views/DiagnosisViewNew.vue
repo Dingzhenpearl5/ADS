@@ -258,7 +258,6 @@
                     >
                       {{ aiAnalysisResult.riskLevel }}风险
                     </el-tag>
-                    <span class="risk-score">置信度: {{ aiAnalysisResult.confidence }}%</span>
                   </div>
                 </div>
 
@@ -555,7 +554,6 @@ const isAnalyzing = ref(false)
 const aiAnalysisResult = ref({
   conclusion: '',
   riskLevel: '',
-  confidence: 0,
   description: '',
   suggestions: [],
   analysisTime: ''
@@ -756,7 +754,10 @@ const handleStartDiagnosis = async () => {
       }
     }, 400)
     
-    const res = await startTask({ imageUrl: url1.value })
+    const res = await startTask({ 
+      imageUrl: url1.value,
+      patientId: patient.value.id  // 添加患者ID
+    })
     
     clearInterval(progressInterval)
     percentage.value = 100
@@ -872,7 +873,6 @@ const regenerateAnalysis = () => {
   aiAnalysisResult.value = {
     conclusion: '',
     riskLevel: '',
-    confidence: 0,
     description: '',
     suggestions: [],
     analysisTime: ''
@@ -1008,11 +1008,13 @@ onMounted(() => {
   
   initSocket()
   
-  // 如果 URL 中有患者 ID，则自动查询
-  const id = route.query.id
+  // 优先从 URL 查询参数获取患者 ID，其次从 sessionStorage 获取（首页跳转）
+  const id = route.query.id || sessionStorage.getItem('currentPatientId')
   if (id) {
     searchId.value = id
     fetchPatientData(id)
+    // 读取后清除 sessionStorage，避免下次重复使用
+    sessionStorage.removeItem('currentPatientId')
   }
   
   window.addEventListener('resize', handleResize)

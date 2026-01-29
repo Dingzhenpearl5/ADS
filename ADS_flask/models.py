@@ -120,16 +120,34 @@ class DiagnosisRecord(db.Model):
     
     def to_dict(self, include_patient=False):
         """转换为字典"""
+        # 解析 features JSON
+        features_data = json.loads(self.features) if self.features else {}
+        
+        # 为前端兼容，将中文键映射为英文键
+        normalized_features = {
+            'area': features_data.get('面积', features_data.get('area', 0)),
+            'perimeter': features_data.get('周长', features_data.get('perimeter', 0)),
+            'circularity': features_data.get('圆度', features_data.get('circularity', 0)),
+            'eccentricity': features_data.get('离心率', features_data.get('eccentricity', 0)),
+            'mean_intensity': features_data.get('平均灰度', features_data.get('mean_intensity', 0)),
+            'std_intensity': features_data.get('灰度标准差', features_data.get('std_intensity', 0)),
+            # 保留原始数据
+            **features_data
+        }
+        
         data = {
             'id': self.id,
             'patient_id': self.patient_id,
             'doctor_username': self.doctor_username,
+            'doctor': self.doctor.name if self.doctor else self.doctor_username,  # 前端显示用
             'filename': self.filename,
             'image_url': self.image_url,
             'draw_url': self.draw_url,
+            'original_url': self.image_url,  # 前端兼容别名
+            'mask_url': self.draw_url,       # 前端兼容别名
             'area': self.area,
             'perimeter': self.perimeter,
-            'features': json.loads(self.features) if self.features else {},
+            'features': normalized_features,
             'doctor_diagnosis': self.doctor_diagnosis,
             'doctor_suggestion': self.doctor_suggestion,
             'diagnosis_conclusion': self.diagnosis_conclusion,

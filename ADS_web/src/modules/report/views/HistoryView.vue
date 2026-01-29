@@ -185,6 +185,25 @@
             </el-descriptions-item>
           </el-descriptions>
         </div>
+
+        <!-- 医生诊断记录 -->
+        <div class="doctor-record-section" v-if="currentDetail.doctor_diagnosis || currentDetail.doctor_suggestion || currentDetail.diagnosis_conclusion">
+          <h4>医生诊断记录</h4>
+          <el-descriptions :column="1" border size="small">
+            <el-descriptions-item label="诊断结论">
+              <el-tag v-if="currentDetail.diagnosis_conclusion" :type="getConclusionType(currentDetail.diagnosis_conclusion)">
+                {{ currentDetail.diagnosis_conclusion }}
+              </el-tag>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="诊断描述">
+              {{ currentDetail.doctor_diagnosis || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="治疗建议">
+              {{ currentDetail.doctor_suggestion || '-' }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
       </div>
     </el-dialog>
 
@@ -303,6 +322,15 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+// 获取诊断结论类型
+const getConclusionType = (conclusion) => {
+  if (!conclusion) return 'info'
+  if (conclusion.includes('恶性') || conclusion.includes('肿瘤')) return 'danger'
+  if (conclusion.includes('疑似') || conclusion.includes('待')) return 'warning'
+  if (conclusion.includes('良性') || conclusion.includes('正常')) return 'success'
+  return 'info'
+}
+
 // 获取图片完整URL
 const getImageUrl = (path) => {
   if (!path) return ''
@@ -406,7 +434,8 @@ onMounted(() => {
 }
 
 .image-preview h4,
-.features-section h4 {
+.features-section h4,
+.doctor-record-section h4 {
   margin-bottom: 15px;
   color: #303133;
   font-size: 16px;
@@ -437,6 +466,10 @@ onMounted(() => {
 }
 
 .features-section {
+  margin-top: 20px;
+}
+
+.doctor-record-section {
   margin-top: 20px;
 }
 
