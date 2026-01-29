@@ -172,84 +172,95 @@ def upload_file_compat():
 
 
 # ==================== 数据库初始化 ====================
+# 注意: 数据库初始化已移至 init_database.sql
+# 请先运行: mysql -u root -p < init_database.sql
 
-def init_db():
-    """初始化数据库"""
-    import hashlib
-    from models import User, Patient, SystemSetting
-    
-    with app.app_context():
-        try:
-            db.create_all()
-            
-            # 创建默认管理员
-            if not User.query.filter_by(username='admin').first():
-                admin = User(
-                    username='admin',
-                    password=hashlib.sha256('123456'.encode()).hexdigest(),
-                    name='管理员',
-                    role='admin',
-                    permissions='["rectum","lung","liver","brain","breast","stomach"]'
-                )
-                db.session.add(admin)
-                print("[DB] 已创建默认管理员账号: admin")
-            
-            # 创建默认医生
-            if not User.query.filter_by(username='doctor').first():
-                doctor = User(
-                    username='doctor',
-                    password=hashlib.sha256('doctor123'.encode()).hexdigest(),
-                    name='医生用户',
-                    role='doctor',
-                    permissions='["rectum"]'
-                )
-                db.session.add(doctor)
-                print("[DB] 已创建默认医生账号: doctor")
-            
-            # 创建默认患者
-            if not Patient.query.filter_by(patient_id='20190001').first():
-                patient = Patient(
-                    patient_id='20190001',
-                    name='李明',
-                    gender='男',
-                    age=29,
-                    phone='13220986785',
-                    part='直肠'
-                )
-                db.session.add(patient)
-                print("[DB] 已创建默认病人信息")
-
-            # 初始化系统设置
-            default_settings = [
-                {'key': 'analysis_threshold', 'value': '1000', 'description': '面积阈值(像素)', 'category': 'analysis'},
-                {'key': 'analysis_circularity_threshold', 'value': '0.7', 'description': '圆度阈值', 'category': 'analysis'},
-                {'key': 'analysis_min_area', 'value': '100', 'description': '最小有效面积', 'category': 'analysis'},
-                {'key': 'analysis_confidence_threshold', 'value': '0.5', 'description': '模型置信度阈值', 'category': 'analysis'},
-                {'key': 'report_show_area', 'value': 'true', 'description': '报告中显示面积', 'category': 'report'},
-                {'key': 'report_show_perimeter', 'value': 'true', 'description': '报告中显示周长', 'category': 'report'},
-                {'key': 'report_show_circularity', 'value': 'true', 'description': '报告中显示圆度', 'category': 'report'},
-                {'key': 'report_hospital_name', 'value': '直肠肿瘤辅助诊断中心', 'description': '医院名称', 'category': 'report'},
-                {'key': 'report_footer_text', 'value': '本报告仅供临床参考，最终诊断以医生意见为准', 'description': '报告页脚', 'category': 'report'},
-                {'key': 'system_max_upload_size', 'value': '50', 'description': '最大上传大小(MB)', 'category': 'system'},
-                {'key': 'system_session_timeout', 'value': '24', 'description': 'Token有效期(小时)', 'category': 'system'},
-            ]
-            
-            for setting in default_settings:
-                if not SystemSetting.query.filter_by(key=setting['key']).first():
-                    db.session.add(SystemSetting(
-                        key=setting['key'],
-                        value=setting['value'],
-                        description=setting['description'],
-                        category=setting['category'],
-                        updated_by='system'
-                    ))
-            
-            db.session.commit()
-            print("[DB] 数据库初始化完成")
-            
-        except Exception as e:
-            print(f"[DB] 数据库初始化失败: {e}")
-            print("提示: 请确保MySQL服务已启动，且数据库 'ads_db' 已存在")
+# def init_db():
+#     """初始化数据库（需先运行 init_database.sql 创建表结构）"""
+#     import hashlib
+#     from models import User, Patient, SystemSetting
+#     
+#     with app.app_context():
+#         try:
+#             # 检查数据库表是否存在
+#             from sqlalchemy import inspect
+#             inspector = inspect(db.engine)
+#             tables = inspector.get_table_names()
+#             
+#             if 'users' not in tables:
+#                 print("[DB] 错误: 数据库表不存在!")
+#                 print("[DB] 请先运行 init_database.sql 创建数据库结构")
+#                 print("[DB] 命令: mysql -u root -p < init_database.sql")
+#                 return
+#             
+#             # 创建默认管理员
+#             if not User.query.filter_by(username='admin').first():
+#                 admin = User(
+#                     username='admin',
+#                     password=hashlib.sha256('123456'.encode()).hexdigest(),
+#                     name='管理员',
+#                     role='admin',
+#                     permissions='["rectum","lung","liver","brain","breast","stomach"]'
+#                 )
+#                 db.session.add(admin)
+#                 print("[DB] 已创建默认管理员账号: admin")
+#             
+#             # 创建默认医生
+#             if not User.query.filter_by(username='doctor').first():
+#                 doctor = User(
+#                     username='doctor',
+#                     password=hashlib.sha256('doctor123'.encode()).hexdigest(),
+#                     name='医生用户',
+#                     role='doctor',
+#                     permissions='["rectum"]'
+#                 )
+#                 db.session.add(doctor)
+#                 print("[DB] 已创建默认医生账号: doctor")
+#             
+#             # 创建默认患者
+#             if not Patient.query.filter_by(patient_id='20190001').first():
+#                 patient = Patient(
+#                     patient_id='20190001',
+#                     name='李明',
+#                     gender='男',
+#                     age=29,
+#                     phone='13220986785',
+#                     part='直肠'
+#                 )
+#                 db.session.add(patient)
+#                 print("[DB] 已创建默认病人信息")
+#
+#             # 初始化系统设置
+#             default_settings = [
+#                 {'key': 'analysis_threshold', 'value': '1000', 'description': '面积阈值(像素)', 'category': 'analysis'},
+#                 {'key': 'analysis_circularity_threshold', 'value': '0.7', 'description': '圆度阈值', 'category': 'analysis'},
+#                 {'key': 'analysis_min_area', 'value': '100', 'description': '最小有效面积', 'category': 'analysis'},
+#                 {'key': 'analysis_confidence_threshold', 'value': '0.5', 'description': '模型置信度阈值', 'category': 'analysis'},
+#                 {'key': 'report_show_area', 'value': 'true', 'description': '报告中显示面积', 'category': 'report'},
+#                 {'key': 'report_show_perimeter', 'value': 'true', 'description': '报告中显示周长', 'category': 'report'},
+#                 {'key': 'report_show_circularity', 'value': 'true', 'description': '报告中显示圆度', 'category': 'report'},
+#                 {'key': 'report_hospital_name', 'value': '直肠肿瘤辅助诊断中心', 'description': '医院名称', 'category': 'report'},
+#                 {'key': 'report_footer_text', 'value': '本报告仅供临床参考，最终诊断以医生意见为准', 'description': '报告页脚', 'category': 'report'},
+#                 {'key': 'system_max_upload_size', 'value': '50', 'description': '最大上传大小(MB)', 'category': 'system'},
+#                 {'key': 'system_session_timeout', 'value': '24', 'description': 'Token有效期(小时)', 'category': 'system'},
+#             ]
+#             
+#             for setting in default_settings:
+#                 if not SystemSetting.query.filter_by(key=setting['key']).first():
+#                     db.session.add(SystemSetting(
+#                         key=setting['key'],
+#                         value=setting['value'],
+#                         description=setting['description'],
+#                         category=setting['category'],
+#                         updated_by='system'
+#                     ))
+#             
+#             db.session.commit()
+#             print("[DB] 数据库初始化完成")
+#             
+#         except Exception as e:
+#             print(f"[DB] 数据库初始化失败: {e}")
+#             print("提示: 请确保MySQL服务已启动，且数据库 'ads_db' 已存在")
 
 
 # ==================== 模型初始化 ====================
@@ -286,8 +297,8 @@ werkzeug_logger.setLevel(logging.ERROR)
 
 if __name__ == '__main__':
     try:
-        # 初始化数据库
-        init_db()
+        # 数据库初始化已移至 init_database.sql，无需在此调用
+        # init_db()
         
         # 初始化模型
         print("[Init] 开始初始化模型...")
