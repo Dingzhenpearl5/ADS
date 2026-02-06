@@ -6,7 +6,7 @@
         <div class="welcome-text">
           <h1 class="greeting">你好，{{ userName }}！</h1>
           <p class="date-info">{{ currentDate }} {{ currentTime }}</p>
-          <p class="tip">今天也要元气满满地工作哦 💪</p>
+          <p class="tip">直肠肿瘤辅助诊断系统已就绪</p>
         </div>
         <div class="quick-actions">
           <el-button type="primary" size="large" :icon="VideoPlay" @click="goToWorkspace">
@@ -48,11 +48,11 @@
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
           <div class="stat-icon" style="background: linear-gradient(135deg, #5cadff 0%, #0080ff 100%)">
-            <el-icon :size="32"><CircleCheck /></el-icon>
+            <el-icon :size="32"><User /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ accuracy }}%</div>
-            <div class="stat-label">平均准确率</div>
+            <div class="stat-value">{{ totalPatients }}</div>
+            <div class="stat-label">患者总数</div>
           </div>
         </div>
       </el-card>
@@ -60,11 +60,11 @@
       <el-card class="stat-card" shadow="hover">
         <div class="stat-content">
           <div class="stat-icon" style="background: linear-gradient(135deg, #3d8ef7 0%, #1565c0 100%)">
-            <el-icon :size="32"><Clock /></el-icon>
+            <el-icon :size="32"><UserFilled /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ avgTime }}分钟</div>
-            <div class="stat-label">平均用时</div>
+            <div class="stat-value">{{ totalUsers }}</div>
+            <div class="stat-label">系统用户</div>
           </div>
         </div>
       </el-card>
@@ -205,7 +205,7 @@
               <div class="feature-item">
                 <div class="feature-icon">📊</div>
                 <h4>智能量化分析</h4>
-                <p>自动提取肿瘤特征，生成诊断报告</p>
+                <p>自动提取肿瘤面积、周长等关键指标</p>
               </div>
             </div>
           </div>
@@ -244,7 +244,7 @@
                 <div class="step-number">3</div>
                 <div class="step-content">
                   <h4>特征提取</h4>
-                  <p>计算形态学、纹理等多维度特征</p>
+                  <p>计算面积、周长、似圆度等形态学特征</p>
                 </div>
               </div>
               <el-icon class="flow-arrow"><ArrowRight /></el-icon>
@@ -274,11 +274,11 @@
                   </div>
                   <div class="highlight-item">
                     <el-icon color="#67c23a"><Select /></el-icon>
-                    <span><strong>精准分割：</strong>对直肠肿瘤边界识别准确率达 94.5%，优于传统方法</span>
+                    <span><strong>精准分割：</strong>融合Transformer与UNet实现高精度肿瘤边界识别</span>
                   </div>
                   <div class="highlight-item">
                     <el-icon color="#67c23a"><Select /></el-icon>
-                    <span><strong>快速高效：</strong>单次诊断 2-3 分钟，实时反馈诊断结果</span>
+                    <span><strong>快速高效：</strong>上传CT影像后数秒内完成分割与特征分析</span>
                   </div>
                   <div class="highlight-item">
                     <el-icon color="#67c23a"><Select /></el-icon>
@@ -393,13 +393,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  VideoPlay, Document, TrendCharts, Calendar, CircleCheck, Clock,
+  VideoPlay, Document, TrendCharts, Calendar,
   Notebook, Cpu, ArrowRight, Select, Grid, DataAnalysis, 
-  QuestionFilled, Timer, Search, User, Close
+  QuestionFilled, Timer, Search, User, Close, UserFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/authStore'
 import { getStatistics, getDiagnosisHistory } from '@/services/statistics'
@@ -456,8 +456,8 @@ const updateDateTime = () => {
 // 统计数据（仅管理员）
 const totalDiagnosis = ref(0)
 const todayDiagnosis = ref(0)
-const accuracy = ref(0)
-const avgTime = ref(0)
+const totalPatients = ref(0)
+const totalUsers = ref(0)
 const loading = ref(false)
 
 // 最近诊断记录（仅管理员）
@@ -555,8 +555,8 @@ const fetchStatistics = async () => {
     if (res.status === 1 && res.data) {
       totalDiagnosis.value = res.data.total_diagnoses || 0
       todayDiagnosis.value = res.data.today_diagnoses || 0
-      accuracy.value = res.data.avg_accuracy || '--'
-      avgTime.value = res.data.avg_time || '--'
+      totalPatients.value = res.data.total_patients || 0
+      totalUsers.value = res.data.total_users || 0
       recentDiagnosis.value = res.data.recent_diagnoses || []
     }
   } catch (error) {
@@ -602,17 +602,12 @@ const viewRecord = (item) => {
 // 获取系统公告
 const fetchAnnouncements = async () => {
   try {
-    console.log('[公告] 开始获取公告...')
     const res = await getAnnouncements({ status: 'published', per_page: 5 })
-    console.log('[公告] 响应:', res)
     if (res.status === 1 && res.data?.items) {
       announcements.value = res.data.items
-      console.log('[公告] 获取成功, 数量:', announcements.value.length)
-    } else {
-      console.log('[公告] 响应状态异常:', res)
     }
   } catch (error) {
-    console.error('获取公告失败:', error)
+    // ignore
   }
 }
 
@@ -657,13 +652,19 @@ const clearQueriedPatient = () => {
   sessionStorage.removeItem('currentPatientId')
 }
 
+let timer = null
+
 onMounted(() => {
   updateDateTime()
-  setInterval(updateDateTime, 60000) // 每分钟更新一次
-  initDismissedIds() // 初始化用户已关闭的公告列表
-  fetchStatistics() // 获取统计数据（仅管理员）
-  fetchAnnouncements() // 获取系统公告
-  restoreQueriedPatient() // 恢复之前查询的患者信息
+  timer = setInterval(updateDateTime, 60000)
+  initDismissedIds()
+  fetchStatistics()
+  fetchAnnouncements()
+  restoreQueriedPatient()
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
 })
 </script>
 

@@ -344,16 +344,6 @@ def get_statistics():
                 'count': count
             })
         
-        # 计算平均准确率（基于实际数据）
-        avg_accuracy = None
-        if total_diagnoses > 0:
-            # 如果有实际诊断数据，计算平均准确率
-            from sqlalchemy import func
-            avg_area = db.session.query(func.avg(DiagnosisRecord.area)).filter(
-                DiagnosisRecord.area.isnot(None)
-            ).scalar()
-            avg_accuracy = 93.5 if avg_area is not None else None
-        
         # 最近诊断记录
         recent_records = DiagnosisRecord.query.order_by(
             DiagnosisRecord.created_at.desc()
@@ -392,8 +382,6 @@ def get_statistics():
             'total_users': total_users,
             'today_diagnoses': today_diagnoses,
             'daily_stats': daily_stats,
-            'avg_accuracy': round(avg_accuracy, 1) if avg_accuracy is not None else None,
-            'avg_time': None,
             'recent_diagnoses': recent_diagnoses
         })
         
