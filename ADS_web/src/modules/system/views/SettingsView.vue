@@ -363,10 +363,10 @@ const uploadRef = ref(null)
 
 // 数据分析参数表单
 const analysisForm = reactive({
-  analysis_threshold: 1000,
-  analysis_circularity_threshold: 0.7,
-  analysis_min_area: 100,
-  analysis_confidence_threshold: 0.5
+  analysis_threshold: '',
+  analysis_circularity_threshold: '',
+  analysis_min_area: '',
+  analysis_confidence_threshold: ''
 })
 
 // 报告内容设置表单
@@ -377,14 +377,14 @@ const reportForm = reactive({
   report_show_eccentricity: true,
   report_show_intensity: true,
   report_show_histogram: true,
-  report_hospital_name: '直肠肿瘤辅助诊断中心',
-  report_footer_text: '本报告仅供临床参考，最终诊断以医生意见为准'
+  report_hospital_name: '',
+  report_footer_text: ''
 })
 
 // 系统设置表单
 const systemForm = reactive({
-  system_max_upload_size: 50,
-  system_session_timeout: 24,
+  system_max_upload_size: '',
+  system_session_timeout: '',
   system_auto_backup: false
 })
 

@@ -555,8 +555,8 @@ const fetchStatistics = async () => {
     if (res.status === 1 && res.data) {
       totalDiagnosis.value = res.data.total_diagnoses || 0
       todayDiagnosis.value = res.data.today_diagnoses || 0
-      accuracy.value = res.data.avg_accuracy || 93.5
-      avgTime.value = res.data.avg_time || 3.2
+      accuracy.value = res.data.avg_accuracy || '--'
+      avgTime.value = res.data.avg_time || '--'
       recentDiagnosis.value = res.data.recent_diagnoses || []
     }
   } catch (error) {

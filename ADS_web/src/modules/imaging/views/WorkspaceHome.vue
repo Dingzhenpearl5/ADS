@@ -92,7 +92,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -100,6 +100,7 @@ import {
   Orange, Apple, Coffee, IceCream
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../../../stores/authStore'
+import { getStatistics } from '../../../services/statistics'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -123,8 +124,8 @@ const bodyParts = ref([
     icon: Medal,
     color: 'linear-gradient(135deg, #409eff 0%, #1890ff 100%)',
     available: true,
-    caseCount: 1247,
-    accuracy: 94.5,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '2-3分钟',
     route: '/diagnosis/rectum'
   },
@@ -135,8 +136,8 @@ const bodyParts = ref([
     icon: FirstAidKit,
     color: 'linear-gradient(135deg, #66b3ff 0%, #3399ff 100%)',
     available: false,
-    caseCount: 856,
-    accuracy: 92.3,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '3-4分钟',
     route: '/diagnosis/lung'
   },
@@ -147,8 +148,8 @@ const bodyParts = ref([
     icon: Orange,
     color: 'linear-gradient(135deg, #5cadff 0%, #0080ff 100%)',
     available: false,
-    caseCount: 624,
-    accuracy: 91.8,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '2-3分钟',
     route: '/diagnosis/liver'
   },
@@ -159,8 +160,8 @@ const bodyParts = ref([
     icon: Apple,
     color: 'linear-gradient(135deg, #3d8ef7 0%, #1565c0 100%)',
     available: false,
-    caseCount: 432,
-    accuracy: 93.2,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '4-5分钟',
     route: '/diagnosis/brain'
   },
@@ -171,8 +172,8 @@ const bodyParts = ref([
     icon: Coffee,
     color: 'linear-gradient(135deg, #7db3e8 0%, #4a90e2 100%)',
     available: false,
-    caseCount: 1089,
-    accuracy: 95.1,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '2-3分钟',
     route: '/diagnosis/breast'
   },
@@ -183,21 +184,42 @@ const bodyParts = ref([
     icon: IceCream,
     color: 'linear-gradient(135deg, #91c5e8 0%, #5ea3d6 100%)',
     available: false,
-    caseCount: 534,
-    accuracy: 90.7,
+    caseCount: '--',
+    accuracy: '--',
     processTime: '3-4分钟',
     route: '/diagnosis/stomach'
   }
 ])
 
-// 统计数据
-const totalCases = ref(4782)
-const todayCases = ref(23)
-const averageAccuracy = computed(() => {
-  const sum = bodyParts.value.reduce((acc, part) => acc + part.accuracy, 0)
-  return (sum / bodyParts.value.length).toFixed(1)
+// 统计数据（从后端API获取）
+const totalCases = ref(0)
+const todayCases = ref(0)
+const averageAccuracy = ref('--')
+const onlineDoctors = ref('--')
+
+// 从后端获取统计数据
+const fetchStats = async () => {
+  try {
+    const res = await getStatistics()
+    if (res.status === 1 && res.data) {
+      totalCases.value = res.data.total_diagnoses || 0
+      todayCases.value = res.data.today_diagnoses || 0
+      averageAccuracy.value = res.data.avg_accuracy || '--'
+      // 直肠的已有病例数从真实数据获取
+      const rectumPart = bodyParts.value.find(p => p.id === 'rectum')
+      if (rectumPart) {
+        rectumPart.caseCount = res.data.total_diagnoses || 0
+        rectumPart.accuracy = res.data.avg_accuracy || '--'
+      }
+    }
+  } catch (error) {
+    console.error('获取统计数据失败:', error)
+  }
+}
+
+onMounted(() => {
+  fetchStats()
 })
-const onlineDoctors = ref(8)
 
 const handlePartClick = (part) => {
   if (!part.available) {

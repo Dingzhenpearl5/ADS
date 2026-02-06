@@ -52,7 +52,7 @@
     </div>
     
     <div class="copyright">
-      <p>© 2023 直肠肿瘤辅助诊断系统</p>
+      <p>© {{ new Date().getFullYear() }} 直肠肿瘤辅助诊断系统</p>
     </div>
   </div>
 </template>
