@@ -53,7 +53,7 @@
           <!-- 特征数据 -->
           <div class="compare-features" v-if="item.features">
             <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="面积">
+              <el-descriptions-item label="肿瘤面积">
                 <span :class="getChangeClass(item, 'area', index)">
                   {{ item.features.area || '-' }}
                   <span v-if="index > 0 && item.features.area" class="change-indicator">
@@ -61,7 +61,7 @@
                   </span>
                 </span>
               </el-descriptions-item>
-              <el-descriptions-item label="周长">
+              <el-descriptions-item label="肿瘤周长">
                 <span :class="getChangeClass(item, 'perimeter', index)">
                   {{ item.features.perimeter || '-' }}
                   <span v-if="index > 0 && item.features.perimeter" class="change-indicator">
@@ -69,14 +69,14 @@
                   </span>
                 </span>
               </el-descriptions-item>
-              <el-descriptions-item label="圆度">
-                {{ item.features.circularity?.toFixed(4) || '-' }}
+              <el-descriptions-item label="似圆度">
+                {{ item.features.ellipse || '-' }}
               </el-descriptions-item>
-              <el-descriptions-item label="离心率">
-                {{ item.features.eccentricity?.toFixed(4) || '-' }}
+              <el-descriptions-item label="灰度均值">
+                {{ item.features.mean || '-' }}
               </el-descriptions-item>
-              <el-descriptions-item label="平均灰度">
-                {{ item.features.mean_intensity?.toFixed(2) || '-' }}
+              <el-descriptions-item label="灰度标准差">
+                {{ item.features.std || '-' }}
               </el-descriptions-item>
             </el-descriptions>
           </div>

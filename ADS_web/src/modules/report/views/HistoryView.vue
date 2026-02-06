@@ -165,23 +165,20 @@
         <div class="features-section" v-if="currentDetail.features">
           <h4>特征分析</h4>
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="面积">
+            <el-descriptions-item label="肿瘤面积">
               {{ currentDetail.features.area || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="周长">
+            <el-descriptions-item label="肿瘤周长">
               {{ currentDetail.features.perimeter || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="圆度">
-              {{ currentDetail.features.circularity?.toFixed(4) || '-' }}
+            <el-descriptions-item label="似圆度">
+              {{ currentDetail.features.ellipse || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="离心率">
-              {{ currentDetail.features.eccentricity?.toFixed(4) || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="平均灰度">
-              {{ currentDetail.features.mean_intensity?.toFixed(2) || '-' }}
+            <el-descriptions-item label="灰度均值">
+              {{ currentDetail.features.mean || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="灰度标准差">
-              {{ currentDetail.features.std_intensity?.toFixed(2) || '-' }}
+              {{ currentDetail.features.std || '-' }}
             </el-descriptions-item>
           </el-descriptions>
         </div>

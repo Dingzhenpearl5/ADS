@@ -122,17 +122,20 @@ class DiagnosisRecord(db.Model):
         """转换为字典"""
         # 解析 features JSON
         features_data = json.loads(self.features) if self.features else {}
-        
-        # 为前端兼容，将中文键映射为英文键
+
+        # 从 [中文名, 数值] 格式或直接数值中提取
+        def _val(d, key):
+            v = d.get(key, 0)
+            if isinstance(v, list):
+                return v[1] if len(v) > 1 else v[0]
+            return v
+
         normalized_features = {
-            'area': features_data.get('面积', features_data.get('area', 0)),
-            'perimeter': features_data.get('周长', features_data.get('perimeter', 0)),
-            'circularity': features_data.get('圆度', features_data.get('circularity', 0)),
-            'eccentricity': features_data.get('离心率', features_data.get('eccentricity', 0)),
-            'mean_intensity': features_data.get('平均灰度', features_data.get('mean_intensity', 0)),
-            'std_intensity': features_data.get('灰度标准差', features_data.get('std_intensity', 0)),
-            # 保留原始数据
-            **features_data
+            'area': _val(features_data, 'area'),
+            'perimeter': _val(features_data, 'perimeter'),
+            'ellipse': _val(features_data, 'ellipse'),
+            'mean': _val(features_data, 'mean'),
+            'std': _val(features_data, 'std'),
         }
         
         data = {

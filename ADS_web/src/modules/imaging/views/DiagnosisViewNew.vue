@@ -386,32 +386,17 @@
               </div>
             </template>
 
-            <el-tabs v-model="activeTab" class="analysis-tabs">
-              <!-- 特征列表 -->
-              <el-tab-pane label="特征数据" name="features">
-                <div class="feature-list" v-if="featureList.length">
-                  <div 
-                    v-for="(item, index) in featureList" 
-                    :key="index"
-                    class="feature-item"
-                  >
-                    <span class="feature-name">{{ item.name }}</span>
-                    <span class="feature-value">{{ item.value }}</span>
-                  </div>
-                </div>
-                <el-empty v-else description="暂无特征数据" :image-size="80" />
-              </el-tab-pane>
-
-              <!-- 面积图表 -->
-              <el-tab-pane label="面积对比" name="area">
-                <div ref="areaChartRef" class="chart-container"></div>
-              </el-tab-pane>
-
-              <!-- 周长图表 -->
-              <el-tab-pane label="周长对比" name="perimeter">
-                <div ref="perimeterChartRef" class="chart-container"></div>
-              </el-tab-pane>
-            </el-tabs>
+            <div class="feature-list" v-if="featureList.length">
+              <div 
+                v-for="(item, index) in featureList" 
+                :key="index"
+                class="feature-item"
+              >
+                <span class="feature-name">{{ item.name }}</span>
+                <span class="feature-value">{{ item.value }}</span>
+              </div>
+            </div>
+            <el-empty v-else description="暂无特征数据" :image-size="80" />
 
             <!-- 快速统计 -->
             <div class="quick-stats" v-if="areaData || perimeterData">
@@ -488,10 +473,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
 import {
   User, Search, Operation, Upload, UploadFilled, VideoPlay,
   Picture, PictureFilled, MagicStick, DataAnalysis, Document,
@@ -531,8 +515,7 @@ const partName = computed(() => partMap[currentPart.value] || '未知部位')
 // Refs
 const uploadRef = ref(null)
 const reuploadInput = ref(null)
-const areaChartRef = ref(null)
-const perimeterChartRef = ref(null)
+
 
 // State
 const loading = ref(false)
@@ -547,7 +530,7 @@ const showHeatmap = ref(false) // 是否显示热力图 (新增)
 const featureList = ref([])
 const areaData = ref(0)
 const perimeterData = ref(0)
-const activeTab = ref('features')
+
 
 // AI病情分析状态
 const isAnalyzing = ref(false)
@@ -568,10 +551,6 @@ const doctorRecord = ref({
   suggestion: '',
   isSaved: false
 })
-
-// Charts
-let areaChart = null
-let perimeterChart = null
 
 // 患者信息
 const patient = ref({
@@ -613,24 +592,38 @@ const progressColors = [
   { color: '#67c23a', percentage: 100 },
 ]
 
-// 监听 AI 预测结果
+// 从后端返回的特征数据中提取 [{name, value}] 格式
+const parseFeatures = (raw) => {
+  if (!raw || typeof raw !== 'object') return []
+  const entries = Array.isArray(raw) ? raw : Object.entries(raw)
+  if (!entries.length) return []
+  // 如果已经是 [{name, value}] 格式
+  if (entries[0]?.name !== undefined) return entries
+  // 从 {key: [中文名, 数值]} 或 {key: 数值} 转换
+  return entries
+    .filter(([key]) => !['has_heatmap', 'status', 'message'].includes(key))
+    .map(([key, value]) => ({
+      name: Array.isArray(value) ? value[0] : key,
+      value: Array.isArray(value) ? value[1] : (typeof value === 'number' ? value.toFixed(4) : value)
+    }))
+}
+
+const getNumericValue = (val) => {
+  if (Array.isArray(val)) return Number(val[1]) || 0
+  if (typeof val === 'number') return val
+  return 0
+}
+
+// 监听 AI 预测结果（socket 路径）
 watch(resultData, (newData) => {
   if (newData.url2) {
     url2.value = newData.url2
-    featureList.value = newData.featureList || []
+    featureList.value = parseFeatures(newData.featureList)
     areaData.value = newData.area || 0
     perimeterData.value = newData.perimeter || 0
     diagnosing.value = false
-    updateCharts()
   }
 }, { deep: true })
-
-// 监听 Tab 切换更新图表
-watch(activeTab, (newTab) => {
-  if (newTab === 'area' || newTab === 'perimeter') {
-    nextTick(() => updateCharts())
-  }
-})
 
 // Methods
 const fetchPatientData = async (id) => {
@@ -793,25 +786,12 @@ const handleStartDiagnosis = async () => {
       
       if (data.image_info) {
         const info = data.image_info
-        // 过滤掉非特征字段（如 has_heatmap），展示中文标签和数值
-        featureList.value = Object.entries(info)
-          .filter(([key]) => !['has_heatmap', 'status', 'message'].includes(key))
-          .map(([key, value]) => ({
-            name: Array.isArray(value) ? value[0] : key,
-            value: Array.isArray(value) ? value[1] : (typeof value === 'number' ? value.toFixed(4) : value)
-          }))
-        // 提取数值
-        const getNumericValue = (val) => {
-          if (Array.isArray(val)) return Number(val[1]) || 0
-          if (typeof val === 'number') return val
-          return 0
-        }
+        featureList.value = parseFeatures(info)
         areaData.value = getNumericValue(info['area']) || 0
         perimeterData.value = getNumericValue(info['perimeter']) || 0
       }
       
       ElMessage.success('AI诊断分析完成')
-      updateCharts()
     } else {
       ElMessage.error(res.error || '分析失败')
     }
@@ -926,74 +906,6 @@ const clearDoctorRecord = () => {
   }
 }
 
-const updateCharts = () => {
-  nextTick(() => {
-    // 面积图表
-    if (areaChartRef.value && activeTab.value === 'area') {
-      if (!areaChart) {
-        areaChart = echarts.init(areaChartRef.value)
-      }
-      areaChart.setOption({
-        tooltip: { trigger: 'axis' },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-        xAxis: { 
-          type: 'category', 
-          data: ['样本1', '样本2', '样本3', '样本4', '样本5', '样本6', '样本7', '当前'],
-          axisLabel: { fontSize: 10 }
-        },
-        yAxis: { type: 'value', name: '面积(px²)', nameTextStyle: { fontSize: 10 } },
-        series: [{
-          name: '面积',
-          type: 'line',
-          smooth: true,
-          data: [1300, 1290, 1272, 1123.5, 1123, 1092, 1086, areaData.value],
-          itemStyle: { color: '#409eff' },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-              { offset: 1, color: 'rgba(64, 158, 255, 0)' }
-            ])
-          }
-        }]
-      })
-    }
-
-    // 周长图表
-    if (perimeterChartRef.value && activeTab.value === 'perimeter') {
-      if (!perimeterChart) {
-        perimeterChart = echarts.init(perimeterChartRef.value)
-      }
-      perimeterChart.setOption({
-        tooltip: { trigger: 'axis' },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-        xAxis: { 
-          type: 'category', 
-          data: ['样本1', '样本2', '样本3', '样本4', '样本5', '样本6', '样本7', '当前'],
-          axisLabel: { fontSize: 10 }
-        },
-        yAxis: { type: 'value', name: '周长(px)', nameTextStyle: { fontSize: 10 } },
-        series: [{
-          name: '周长',
-          type: 'bar',
-          data: [150, 145, 142, 138, 135, 130, 128, perimeterData.value],
-          itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: '#67c23a' },
-              { offset: 1, color: '#95d475' }
-            ]),
-            borderRadius: [4, 4, 0, 0]
-          }
-        }]
-      })
-    }
-  })
-}
-
-const handleResize = () => {
-  areaChart?.resize()
-  perimeterChart?.resize()
-}
-
 // 监听全局上传事件
 const handleGlobalUpload = (event) => {
   if (event.detail) {
@@ -1019,15 +931,11 @@ onMounted(() => {
     sessionStorage.removeItem('currentPatientId')
   }
   
-  window.addEventListener('resize', handleResize)
   window.addEventListener('upload-ct-file', handleGlobalUpload)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
   window.removeEventListener('upload-ct-file', handleGlobalUpload)
-  areaChart?.dispose()
-  perimeterChart?.dispose()
 })
 </script>
 
@@ -1449,10 +1357,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: #409eff;
   font-size: 13px;
-}
-
-.chart-container {
-  height: 280px;
 }
 
 .quick-stats {
