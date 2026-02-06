@@ -23,12 +23,18 @@ def analyze_diagnosis(image_features, risk_level="未知"):
             "description": "请在配置文件中设置 DEEPSEEK_API_KEY"
         }
 
-    # 构建提示词 - 支持中英文 key
-    area = image_features.get('面积') or image_features.get('area') or '未知'
-    perimeter = image_features.get('周长') or image_features.get('perimeter') or '未知'
-    ellipse = image_features.get('似圆度') or image_features.get('ellipse') or '未知'
-    gray_mean = image_features.get('灰度均值') or image_features.get('mean') or '未知'
-    gray_std = image_features.get('灰度方差') or image_features.get('std') or '未知'
+    # 构建提示词 - 支持 [中文名, 数值] 格式和直接数值格式
+    def _extract(key):
+        v = image_features.get(key, '未知')
+        if isinstance(v, list):
+            return v[1] if len(v) > 1 else v[0]
+        return v
+
+    area = _extract('area')
+    perimeter = _extract('perimeter')
+    ellipse = _extract('ellipse')
+    gray_mean = _extract('mean')
+    gray_std = _extract('std')
     
     prompt = f"""
     你是一个专业的直肠肿瘤辅助诊断AI助手。请根据以下CT影像分析特征，生成一份专业的医疗诊断分析报告。

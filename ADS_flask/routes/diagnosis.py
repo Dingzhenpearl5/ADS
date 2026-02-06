@@ -135,14 +135,19 @@ def predict_image():
             if hasattr(request, 'current_user') and request.current_user:
                 doctor_username = request.current_user.username
             
+            # 从新格式 {key: [中文名, 数值]} 中提取数值
+            def _val(info, key):
+                v = info.get(key, 0)
+                return v[1] if isinstance(v, list) else v
+
             record = DiagnosisRecord(
                 patient_id=patient_id,
                 doctor_username=doctor_username,
                 filename=f'{filename}.dcm',
                 image_url=result['image_url'],
                 draw_url=result['draw_url'],
-                area=image_info.get('面积', 0),
-                perimeter=image_info.get('周长', 0),
+                area=_val(image_info, 'area'),
+                perimeter=_val(image_info, 'perimeter'),
                 features=json.dumps(image_info, ensure_ascii=False)
             )
             db.session.add(record)
@@ -158,8 +163,8 @@ def predict_image():
         socketio.emit('result', {
             'url2': result['draw_url'],
             'feature_list': image_info,
-            'area': image_info.get('面积', 0),
-            'perimeter': image_info.get('周长', 0),
+            'area': _val(image_info, 'area'),
+            'perimeter': _val(image_info, 'perimeter'),
             'record_id': record_id
         })
         

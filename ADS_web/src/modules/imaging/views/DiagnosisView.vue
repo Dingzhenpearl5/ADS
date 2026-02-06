@@ -256,12 +256,19 @@ const handleStartDiagnosis = async () => {
       // 处理特征数据
       if (res.image_info) {
         const info = res.image_info
-        featureList.value = Object.entries(info).map(([key, value]) => ({
-          name: key,
-          value: typeof value === 'number' ? value.toFixed(4) : value
-        }))
-        areaData.value = info['面积'] || info['area'] || 0
-        perimeterData.value = info['周长'] || info['perimeter'] || 0
+        const getNumericValue = (val) => {
+          if (Array.isArray(val)) return Number(val[1]) || 0
+          if (typeof val === 'number') return val
+          return 0
+        }
+        featureList.value = Object.entries(info)
+          .filter(([key]) => !['has_heatmap', 'status', 'message'].includes(key))
+          .map(([key, value]) => ({
+            name: Array.isArray(value) ? value[0] : key,
+            value: Array.isArray(value) ? value[1] : (typeof value === 'number' ? value.toFixed(4) : value)
+          }))
+        areaData.value = getNumericValue(info['area']) || 0
+        perimeterData.value = getNumericValue(info['perimeter']) || 0
       }
       
       ElMessage.success('AI诊断分析完成')

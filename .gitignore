@@ -184,3 +184,6 @@ Thumbs.db
 # Project specific
 README.md
 ADS_flask/requirements.txt
+
+#md
+*.md

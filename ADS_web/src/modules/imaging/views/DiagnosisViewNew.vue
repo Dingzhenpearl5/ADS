@@ -793,19 +793,21 @@ const handleStartDiagnosis = async () => {
       
       if (data.image_info) {
         const info = data.image_info
-        featureList.value = Object.entries(info).map(([key, value]) => ({
-          name: key,
-          // 后端返回格式可能是 [中文名, 数值] 或直接是数值
-          value: Array.isArray(value) ? (value[1] ?? value[0]) : (typeof value === 'number' ? value.toFixed(4) : value)
-        }))
-        // 提取数值：后端返回的格式是 {'area': ['面积', 数值], ...}
+        // 过滤掉非特征字段（如 has_heatmap），展示中文标签和数值
+        featureList.value = Object.entries(info)
+          .filter(([key]) => !['has_heatmap', 'status', 'message'].includes(key))
+          .map(([key, value]) => ({
+            name: Array.isArray(value) ? value[0] : key,
+            value: Array.isArray(value) ? value[1] : (typeof value === 'number' ? value.toFixed(4) : value)
+          }))
+        // 提取数值
         const getNumericValue = (val) => {
           if (Array.isArray(val)) return Number(val[1]) || 0
           if (typeof val === 'number') return val
           return 0
         }
-        areaData.value = getNumericValue(info['area']) || getNumericValue(info['面积']) || 0
-        perimeterData.value = getNumericValue(info['perimeter']) || getNumericValue(info['周长']) || 0
+        areaData.value = getNumericValue(info['area']) || 0
+        perimeterData.value = getNumericValue(info['perimeter']) || 0
       }
       
       ElMessage.success('AI诊断分析完成')

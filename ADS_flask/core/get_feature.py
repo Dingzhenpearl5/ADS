@@ -1,231 +1,103 @@
 import SimpleITK as sitk
 import cv2
 import numpy as np
-import pandas as pd
-from numba import jit
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-np.set_printoptions(suppress=True)  # 输出时禁止科学表示法，直接输出小数值
+np.set_printoptions(suppress=True)
 
-column_all_c = ['面积', '周长', '重心x', '重心y', '似圆度', '灰度均值', '灰度方差', '灰度偏度',
-                '灰度峰态', '小梯度优势', '大梯度优势', '灰度分布不均匀性', '梯度分布不均匀性', '能量', '灰度平均', '梯度平均',
-                '灰度均方差', '梯度均方差', '相关', '灰度熵', '梯度熵', '混合熵', '惯性', '逆差矩']
-
-features_list = ['area', 'perimeter', 'focus_x', 'focus_y', 'ellipse', 'mean', 'std', 'piandu', 'fengdu',
-                 'small_grads_dominance',
-                 'big_grads_dominance', 'gray_asymmetry', 'grads_asymmetry', 'energy', 'gray_mean', 'grads_mean',
-                 'gray_variance', 'grads_variance', 'corelation', 'gray_entropy', 'grads_entropy', 'entropy', 'inertia',
-                 'differ_moment']
-
-
-# 最后俩偏度 峰度
+# 精简后的核心特征：仅保留对诊断有实际意义的 5 项
+FEATURE_LABELS = {
+    'area':      '肿瘤面积',
+    'perimeter': '肿瘤周长',
+    'ellipse':   '似圆度',
+    'mean':      '灰度均值',
+    'std':       '灰度标准差',
+}
 
 
-def glcm(img_gray, ngrad=16, ngray=16):
-    '''Gray Level-Gradient Co-occurrence Matrix,取归一化后的灰度值、梯度值分别为16、16'''
-    # 利用sobel算子分别计算x-y方向上的梯度值
-    gsx = cv2.Sobel(img_gray, cv2.CV_64F, 1, 0, ksize=3)
-    gsy = cv2.Sobel(img_gray, cv2.CV_64F, 0, 1, ksize=3)
-    height, width = img_gray.shape
-    grad = (gsx ** 2 + gsy ** 2) ** 0.5  # 计算梯度值
-    grad = np.asarray(1.0 * grad * (ngrad - 1) / grad.max(), dtype=np.int16)
-    gray = np.asarray(1.0 * img_gray * (ngray - 1) / img_gray.max(), dtype=np.int16)  # 0-255变换为0-15
-    gray_grad = np.zeros([ngray, ngrad])  # 灰度梯度共生矩阵
-    for i in range(height):
-        for j in range(width):
-            gray_value = gray[i][j]
-            grad_value = grad[i][j]
-            gray_grad[gray_value][grad_value] += 1
-    gray_grad = 1.0 * gray_grad / (height * width)  # 归一化灰度梯度矩阵，减少计算量
-    get_glcm_features(gray_grad)
-
-
-# @jit  # Numba 无法处理全局字典 c_features，移除 jit 以确保稳定性
-def get_gray_feature():
-    # 灰度特征提取算法
-    hist = cv2.calcHist([image_ROI_uint8[index]], [0], None, [256], [0, 256])
-    # 假的 还没用灰度直方图
-
-    c_features['mean'].append(np.mean(image_ROI[index]))
-    c_features['std'].append(np.std(image_ROI[index]))
-
-    s = pd.Series(image_ROI[index])
-    c_features['piandu'].append(s.skew())
-    c_features['fengdu'].append(s.kurt())
-
-
-def get_glcm_features(mat):
-    '''根据灰度梯度共生矩阵计算纹理特征量，包括小梯度优势，大梯度优势，灰度分布不均匀性，梯度分布不均匀性，能量，灰度平均，梯度平均，
-    灰度方差，梯度方差，相关，灰度熵，梯度熵，混合熵，惯性，逆差矩'''
-    sum_mat = mat.sum()
-    small_grads_dominance = big_grads_dominance = gray_asymmetry = grads_asymmetry = energy = gray_mean = grads_mean = 0
-    gray_variance = grads_variance = corelation = gray_entropy = grads_entropy = entropy = inertia = differ_moment = 0
-    for i in range(mat.shape[0]):
-        gray_variance_temp = 0
-        for j in range(mat.shape[1]):
-            small_grads_dominance += mat[i][j] / ((j + 1) ** 2)
-            big_grads_dominance += mat[i][j] * j ** 2
-            energy += mat[i][j] ** 2
-            if mat[i].sum() != 0:
-                gray_entropy -= mat[i][j] * np.log(mat[i].sum())
-            if mat[:, j].sum() != 0:
-                grads_entropy -= mat[i][j] * np.log(mat[:, j].sum())
-            if mat[i][j] != 0:
-                entropy -= mat[i][j] * np.log(mat[i][j])
-                inertia += (i - j) ** 2 * np.log(mat[i][j])
-            differ_moment += mat[i][j] / (1 + (i - j) ** 2)
-            gray_variance_temp += mat[i][j] ** 0.5
-
-        gray_asymmetry += mat[i].sum() ** 2
-        gray_mean += i * mat[i].sum() ** 2
-        gray_variance += (i - gray_mean) ** 2 * gray_variance_temp
-    for j in range(mat.shape[1]):
-        grads_variance_temp = 0
-        for i in range(mat.shape[0]):
-            grads_variance_temp += mat[i][j] ** 0.5
-        grads_asymmetry += mat[:, j].sum() ** 2
-        grads_mean += j * mat[:, j].sum() ** 2
-        grads_variance += (j - grads_mean) ** 2 * grads_variance_temp
-    small_grads_dominance /= sum_mat
-    big_grads_dominance /= sum_mat
-    gray_asymmetry /= sum_mat
-    grads_asymmetry /= sum_mat
-    gray_variance = gray_variance ** 0.5
-    grads_variance = grads_variance ** 0.5
-    for i in range(mat.shape[0]):
-        for j in range(mat.shape[1]):
-            corelation += (i - gray_mean) * (j - grads_mean) * mat[i][j]
-    
-    glgcm_features = {
-        'small_grads_dominance': small_grads_dominance,
-        'big_grads_dominance': big_grads_dominance,
-        'gray_asymmetry': gray_asymmetry,
-        'grads_asymmetry': grads_asymmetry,
-        'energy': energy,
-        'gray_mean': gray_mean,
-        'grads_mean': grads_mean,
-        'gray_variance': gray_variance,
-        'grads_variance': grads_variance,
-        'corelation': corelation,
-        'gray_entropy': gray_entropy,
-        'grads_entropy': grads_entropy,
-        'entropy': entropy,
-        'inertia': inertia,
-        'differ_moment': differ_moment
-    }
-    
-    for name, value in glgcm_features.items():
-        if name in c_features:
-            c_features[name].append(np.round(value, 4))
-
-
-def get_geometry_feature():
-    # 形态特征  分割mask获得一些特征
-    # 兼容不同版本的OpenCV
+def _get_geometry_feature(mask_array):
+    """从分割 mask 中提取形态特征：面积、周长、似圆度"""
     result = cv2.findContours(mask_array.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    if len(result) == 2:
-        contours, hierarchy = result
-    else:
-        _, contours, hierarchy = result
-    
-    tarea = []
-    tperimeter = []
+    contours = result[0] if len(result) == 2 else result[1]
+
+    best_area = 0
+    best_perimeter = 0
+    best_ellipse = 0
+
     for c in contours:
-        # 生成矩
-        try:
-            M = cv2.moments(c)
-            cx = int(M['m10'] / M['m00'])
-            cy = int(M['m01'] / M['m00'])
-            c_features['focus_x'].append(cx)
-            c_features['focus_y'].append(cy)
-        except:
-            print('error')
+        a = cv2.contourArea(c)
+        p = cv2.arcLength(c, True)
+        if a > best_area:
+            best_area = a
+            best_perimeter = round(p, 4)
+            try:
+                (_, _), (MA, ma), _ = cv2.fitEllipse(c)
+                best_ellipse = round(ma - MA, 4)
+            except Exception:
+                best_ellipse = 0
 
-        # 椭圆拟合
-        try:
-            (x, y), (MA, ma), angle = cv2.fitEllipse(c)
-            c_features['ellipse'].append((ma - MA))
-        except:
-            continue
-        # 面积周长
-        tarea.append(cv2.contourArea(c))
-        tperimeter.append(cv2.arcLength(c, True))
-
-    # 将mask里的最大值追加 有黑洞
-    try:
-        c_features['area'].append(max(tarea))
-        c_features['perimeter'].append(round(max(tperimeter), 4))
-    except:
-        print('area error')
+    return best_area, best_perimeter, best_ellipse
 
 
-# 提取肿瘤特征
-def get_feature(image, mask):
-    global w
-    global image_ROI_uint8, index, image_ROI_mini, image_ROI, mask_array
+def _get_gray_feature(image_array, mask_array):
+    """从 ROI 区域提取灰度统计特征：均值、标准差"""
+    index = np.nonzero(mask_array)
+    roi_values = image_array[index]
+    return round(float(np.mean(roi_values)), 4), round(float(np.std(roi_values)), 4)
 
-    mask_array = cv2.imread(mask, 0)
-    image = sitk.ReadImage(image)
-    image_arrary = sitk.GetArrayFromImage(image)[0, :, :]
-    # 映射到CT获得特征
-    image_ROI = np.zeros(shape=image_arrary.shape)
+
+def get_feature(ct_path, mask_path):
+    """
+    提取肿瘤核心特征（精简版）
+
+    Returns:
+        dict | None: 特征字典，未检测到肿瘤时返回 None
+    """
+    mask_array = cv2.imread(mask_path, 0)
+    image = sitk.ReadImage(ct_path)
+    image_array = sitk.GetArrayFromImage(image)[0, :, :]
+
     index = np.nonzero(mask_array)
     if not index[0].any():
-        # c_features['no'] = True
         return None
-    image_ROI[index] = image_arrary[index]
-    image_ROI_uint8 = np.uint8(image_ROI)
-    # 获得只有肿瘤的图片
-    x, y, w, h = cv2.boundingRect(mask_array)
-    image_ROI_mini = np.uint8(image_arrary[y:y + h, x:x + w])
-    w = image_ROI_mini
 
-    # 灰度梯度共生矩阵提取纹理特征
+    # 形态特征
+    area, perimeter, ellipse = _get_geometry_feature(mask_array)
 
-    get_geometry_feature()
+    # 灰度特征
+    gray_mean, gray_std = _get_gray_feature(image_array, mask_array)
 
-    get_gray_feature()
-
-    glcm(image_ROI_mini, 15, 15)
-
-    return c_features
+    return {
+        'area':      area,
+        'perimeter': perimeter,
+        'ellipse':   ellipse,
+        'mean':      gray_mean,
+        'std':       gray_std,
+    }
 
 
 def main(pid):
-    global w
-
-    person_id = pid
-    global c_features
-    c_features = {}
-    for i in range(len(features_list)):
-        c_features[features_list[i]] = [column_all_c[i]]
-
+    """
+    主入口：根据 pid 提取特征并返回带中文标签的结果
+    """
     ct_path = os.path.join(BASE_DIR, 'tmp', 'ct', f'{pid}.dcm')
     mask_path = os.path.join(BASE_DIR, 'tmp', 'mask', f'{pid}_mask.png')
-    
-    result = get_feature(ct_path, mask_path)
-    
-    # 如果没有检测到肿瘤，返回空结果
-    if result is None:
+
+    features = get_feature(ct_path, mask_path)
+
+    if features is None:
         print(f"⚠️ 未检测到肿瘤: {pid}")
         return {'status': 'no_tumor', 'message': '未检测到肿瘤区域'}
 
-    for j in c_features:
-        if j == 'id':
-            continue
-        # 检查是否有足够的数据
-        if len(c_features[j]) > 1:
-            c_features[j][1] = np.round(np.mean(c_features[j][1]), 4)
-        else:
-            # 如果没有第二个元素，设置为0或默认值
-            c_features[j].append(0)
+    # 附加中文标签，格式: {key: [中文名, 数值]}
+    result = {}
+    for key, value in features.items():
+        result[key] = [FEATURE_LABELS[key], value]
 
-    return c_features
+    return result
 
 
 if __name__ == '__main__':
-    # 仅用于测试
-    # main('10007')
     pass
